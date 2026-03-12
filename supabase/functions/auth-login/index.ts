@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: accountData } = await supabase
       .from("user_accounts")
-      .select("id, username, role, password_hash")
+      .select("id, username, role, password_hash, approved")
       .eq("username", username)
       .maybeSingle();
 
@@ -90,6 +90,7 @@ Deno.serve(async (req: Request) => {
             id: accountData.id,
             username: accountData.username,
             role: accountData.role,
+            approved: accountData.approved,
           },
         },
       }),
