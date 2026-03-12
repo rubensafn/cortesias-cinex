@@ -27,28 +27,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedSession = localStorage.getItem('auth_session');
     if (savedSession) {
-      try {
-        const session = JSON.parse(savedSession);
-        const mockUser: User = {
-          id: session.user.id,
-          email: `${session.user.username}@cinex.com`,
-          user_metadata: {},
-          app_metadata: { role: session.user.role },
-          aud: 'authenticated',
-          created_at: new Date().toISOString(),
-        } as User;
+      (async () => {
+        try {
+          const session = JSON.parse(savedSession);
 
-        setUser(mockUser);
-        const role = (session.user.role as 'master' | 'admin' | 'user') || 'user';
-        setUserRole(role);
-        setIsMaster(role === 'master');
-        setIsAdmin(role === 'admin' || role === 'master');
-        setIsApproved(session.user.approved || false);
-      } catch (e) {
-        localStorage.removeItem('auth_session');
-      }
+          const { data: freshData } = await supabase
+            .from('user_accounts')
+            .select('approved, role')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          const role = ((freshData?.role ?? session.user.role) as 'master' | 'admin' | 'user') || 'user';
+          const approved = freshData?.approved ?? session.user.approved ?? false;
+
+          if (freshData) {
+            session.user.approved = freshData.approved;
+            session.user.role = freshData.role;
+            localStorage.setItem('auth_session', JSON.stringify(session));
+          }
+
+          const mockUser: User = {
+            id: session.user.id,
+            email: `${session.user.username}@cinex.com`,
+            user_metadata: {},
+            app_metadata: { role },
+            aud: 'authenticated',
+            created_at: new Date().toISOString(),
+          } as User;
+
+          setUser(mockUser);
+          setUserRole(role);
+          setIsMaster(role === 'master');
+          setIsAdmin(role === 'admin' || role === 'master');
+          setIsApproved(approved);
+        } catch (e) {
+          localStorage.removeItem('auth_session');
+        }
+        setLoading(false);
+      })();
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const signIn = async (username: string, password: string) => {
