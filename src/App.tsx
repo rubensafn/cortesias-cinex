@@ -22,7 +22,7 @@ function App() {
     return <LoginPage />;
   }
 
-  if (userRole === 'master' || userRole === 'admin') {
+  if (userRole === 'master_admin' || userRole === 'master' || userRole === 'admin') {
     return <Dashboard />;
   }
 

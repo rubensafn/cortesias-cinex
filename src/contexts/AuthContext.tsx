@@ -8,7 +8,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isMaster: boolean;
   isApproved: boolean;
-  userRole: 'master' | 'admin' | 'user' | null;
+  userRole: 'master_admin' | 'master' | 'admin' | 'user' | null;
   signIn: (username: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (username: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMaster, setIsMaster] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
-  const [userRole, setUserRole] = useState<'master' | 'admin' | 'user' | null>(null);
+  const [userRole, setUserRole] = useState<'master_admin' | 'master' | 'admin' | 'user' | null>(null);
 
   useEffect(() => {
     const savedSession = localStorage.getItem('auth_session');
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          const role = ((freshData?.role ?? session.user.role) as 'master' | 'admin' | 'user') || 'user';
+          const role = ((freshData?.role ?? session.user.role) as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
           const approved = freshData?.approved ?? session.user.approved ?? false;
 
           if (freshData) {
@@ -57,8 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           setUser(mockUser);
           setUserRole(role);
-          setIsMaster(role === 'master');
-          setIsAdmin(role === 'admin' || role === 'master');
+          setIsMaster(role === 'master_admin' || role === 'master');
+          setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
           setIsApproved(approved);
         } catch (e) {
           localStorage.removeItem('auth_session');
@@ -93,12 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.session) {
         localStorage.setItem('auth_session', JSON.stringify(data.session));
 
-        const role = (data.session.user?.role as 'master' | 'admin' | 'user') || 'user';
+        const role = (data.session.user?.role as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
         const approved = data.session.user?.approved || false;
 
         setUserRole(role);
-        setIsMaster(role === 'master');
-        setIsAdmin(role === 'admin' || role === 'master');
+        setIsMaster(role === 'master_admin' || role === 'master');
+        setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
         setIsApproved(approved);
 
         const mockUser: User = {

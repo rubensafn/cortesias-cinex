@@ -8,7 +8,7 @@ interface UserProfile {
   user_id: string;
   username: string;
   email: string;
-  role: 'master' | 'admin' | 'user';
+  role: 'master_admin' | 'master' | 'admin' | 'user';
   approved: boolean;
   created_at: string;
 }
@@ -104,13 +104,13 @@ export default function UserManagement() {
   };
 
   const getRoleIcon = (role: string) => {
-    if (role === 'master') return <Crown className="w-4 h-4 text-[#ea0cac]" />;
+    if (role === 'master_admin' || role === 'master') return <Crown className="w-4 h-4 text-[#ea0cac]" />;
     if (role === 'admin') return <Shield className="w-4 h-4 text-[#a700ff]" />;
     return <UserIcon className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />;
   };
 
   const getRoleBadge = (role: string) => {
-    if (role === 'master') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-[#ea0cac]/20 text-[#ea0cac]">MASTER</span>;
+    if (role === 'master_admin' || role === 'master') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-[#ea0cac]/20 text-[#ea0cac]">MASTER</span>;
     if (role === 'admin') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-[#312783]/30 text-[#a700ff]">ADMIN</span>;
     return <span className={`px-2 py-0.5 rounded text-xs font-bold ${isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>USUÁRIO</span>;
   };
@@ -123,7 +123,7 @@ export default function UserManagement() {
   }
 
   const renderUserRow = (u: UserProfile) => {
-    const isMasterUser = u.role === 'master';
+    const isMasterUser = u.role === 'master_admin' || u.role === 'master';
     const isCurrentUser = u.user_id === user?.id;
     let canModify = false;
 
