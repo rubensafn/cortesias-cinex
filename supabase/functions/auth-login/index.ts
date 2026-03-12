@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: accountData } = await supabase
       .from("user_accounts")
-      .select("id, username, role, password_hash")
+      .select("id, username, role, password_hash, approved")
       .eq("username", username)
       .maybeSingle();
 
@@ -74,6 +74,7 @@ Deno.serve(async (req: Request) => {
       sub: accountData.id,
       username: accountData.username,
       role: accountData.role,
+      approved: accountData.approved,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 604800,
       email: `${accountData.username}@cinex.com`,
@@ -90,6 +91,7 @@ Deno.serve(async (req: Request) => {
             id: accountData.id,
             username: accountData.username,
             role: accountData.role,
+            approved: accountData.approved,
           },
         },
       }),
