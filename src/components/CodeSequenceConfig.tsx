@@ -27,6 +27,12 @@ export default function CodeSequenceConfig() {
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const selectSequence = (id: string) => {
+    setSelectedId(id);
+    setSaveError(null);
+    setSaveSuccess(null);
+  };
+
   const isDark = theme === 'dark';
 
   useEffect(() => {
@@ -126,7 +132,7 @@ export default function CodeSequenceConfig() {
               {sequences.map(seq => (
                 <button
                   key={seq.id}
-                  onClick={() => setSelectedId(seq.id)}
+                  onClick={() => selectSequence(seq.id)}
                   className={`p-3 rounded-lg border-2 text-center transition-all font-semibold ${
                     selectedId === seq.id
                       ? isDark
