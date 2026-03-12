@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Hash, Save, RotateCcw } from 'lucide-react';
 
@@ -19,11 +18,12 @@ const UNIT_NAMES: Record<string, string> = {
 };
 
 export default function CodeSequenceConfig() {
-  const { user } = useAuth();
   const { theme } = useTheme();
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -53,19 +53,24 @@ export default function CodeSequenceConfig() {
 
   const handleSave = async (seq: Sequence) => {
     setSaving(seq.id);
+    setSaveError(null);
+    setSaveSuccess(null);
     const newNum = parseInt(editValues[seq.id]) || 0;
 
     const { error } = await supabase
       .from('code_sequences')
       .update({
         current_number: newNum,
-        updated_by: user?.id,
         updated_at: new Date().toISOString(),
       })
       .eq('id', seq.id);
 
     if (!error) {
       setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, current_number: newNum } : s));
+      setSaveSuccess(`Número salvo com sucesso para ${seq.prefix}`);
+      setTimeout(() => setSaveSuccess(null), 3000);
+    } else {
+      setSaveError(`Erro ao salvar: ${error.message}`);
     }
     setSaving(null);
   };
@@ -74,18 +79,23 @@ export default function CodeSequenceConfig() {
     if (!confirm(`Resetar ${seq.prefix} para 0? O proximo codigo sera ${seq.prefix}0001`)) return;
     setEditValues(prev => ({ ...prev, [seq.id]: '0' }));
     setSaving(seq.id);
+    setSaveError(null);
+    setSaveSuccess(null);
 
     const { error } = await supabase
       .from('code_sequences')
       .update({
         current_number: 0,
-        updated_by: user?.id,
         updated_at: new Date().toISOString(),
       })
       .eq('id', seq.id);
 
     if (!error) {
       setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, current_number: 0 } : s));
+      setSaveSuccess(`${seq.prefix} resetado para 0 com sucesso`);
+      setTimeout(() => setSaveSuccess(null), 3000);
+    } else {
+      setSaveError(`Erro ao resetar: ${error.message}`);
     }
     setSaving(null);
   };
@@ -195,6 +205,17 @@ export default function CodeSequenceConfig() {
                   </p>
                 </div>
               </div>
+
+              {saveError && (
+                <div className="px-4 py-3 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-sm font-medium">
+                  {saveError}
+                </div>
+              )}
+              {saveSuccess && (
+                <div className="px-4 py-3 rounded-lg bg-green-500/20 border border-green-500/40 text-green-400 text-sm font-medium">
+                  {saveSuccess}
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button
