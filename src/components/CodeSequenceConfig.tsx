@@ -34,32 +34,21 @@ export default function CodeSequenceConfig() {
   }, []);
 
   const fetchSequences = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('code_sequences')
-        .select('id, prefix, current_number, pad_length')
-        .order('prefix');
+    const { data, error } = await supabase
+      .from('code_sequences')
+      .select('*')
+      .order('prefix');
 
-      if (error) {
-        console.error('Erro ao carregar sequências:', error);
-        setLoading(false);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        setSequences(data);
-        const vals: Record<string, string> = {};
-        data.forEach(s => {
-          vals[s.id] = s.current_number.toString();
-        });
-        setEditValues(vals);
+    if (!error && data) {
+      setSequences(data);
+      const vals: Record<string, string> = {};
+      data.forEach(s => { vals[s.id] = s.current_number.toString(); });
+      setEditValues(vals);
+      if (data.length > 0 && !selectedId) {
         setSelectedId(data[0].id);
       }
-    } catch (err) {
-      console.error('Erro inesperado:', err);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const handleSave = async (seq: Sequence) => {
