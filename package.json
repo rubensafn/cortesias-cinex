@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:prod": "vite --mode production",
     "build": "vite build",
+    "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "env:show": "node -e \"require('dotenv').config({path:'.env'}); require('dotenv').config({path:'.env.development',override:false}); const url=process.env.VITE_SUPABASE_URL; console.log('Ambiente ativo:', url?.includes('eofwwzeqdwsmthiszuwa') ? 'PRODUCAO (eofww...)' : url?.includes('gdtfwmqbvsqtxtccrydv') ? 'DEV (gdtfw...)' : url);\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
