@@ -37,14 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq('id', session.user.id)
             .maybeSingle();
 
-          const role = ((freshData?.role ?? session.user.role) as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
-          const approved = freshData?.approved ?? session.user.approved ?? false;
-
-          if (freshData) {
-            session.user.approved = freshData.approved;
-            session.user.role = freshData.role;
-            localStorage.setItem('auth_session', JSON.stringify(session));
+          if (!freshData) {
+            localStorage.removeItem('auth_session');
+            setLoading(false);
+            return;
           }
+
+          const role = (freshData.role as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
+          const approved = freshData.approved ?? false;
+
+          session.user.approved = freshData.approved;
+          session.user.role = freshData.role;
+          localStorage.setItem('auth_session', JSON.stringify(session));
 
           const mockUser: User = {
             id: session.user.id,
