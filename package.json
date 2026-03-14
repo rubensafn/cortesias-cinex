@@ -15,7 +15,13 @@
     "env": "node scripts/env-switch.mjs",
     "env:prod": "node scripts/env-switch.mjs prod",
     "env:dev": "node scripts/env-switch.mjs dev",
-    "env:status": "node scripts/env-switch.mjs status"
+    "env:status": "node scripts/env-switch.mjs status",
+    "migrate": "node scripts/migrate-prod.mjs prod",
+    "migrate:dev": "node scripts/migrate-prod.mjs dev",
+    "migrate:dry": "node scripts/migrate-prod.mjs prod --dry-run",
+    "migrate:bootstrap": "node scripts/migrate-prod.mjs bootstrap prod && node scripts/migrate-prod.mjs bootstrap dev",
+    "migrate:bootstrap:prod": "node scripts/migrate-prod.mjs bootstrap prod",
+    "migrate:bootstrap:dev": "node scripts/migrate-prod.mjs bootstrap dev"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
