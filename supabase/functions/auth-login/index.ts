@@ -40,9 +40,8 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const dbUrl = Deno.env.get("SUPABASE_DB_URL");
 
-    if (!supabaseUrl || !supabaseKey || !dbUrl) {
+    if (!supabaseUrl || !supabaseKey) {
       return new Response(
         JSON.stringify({ error: "Erro de configuração" }),
         {
@@ -56,11 +55,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: accountData } = await supabase
       .from("user_accounts")
-      .select("id, username, role, password_hash, approved")
+      .select("id, username, role, password, approved")
       .eq("username", username)
       .maybeSingle();
 
-    if (!accountData || accountData.password_hash !== password) {
+    if (!accountData || accountData.password !== password) {
       return new Response(
         JSON.stringify({ error: "Usuário ou senha incorretos" }),
         {

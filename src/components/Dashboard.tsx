@@ -87,14 +87,16 @@ export default function Dashboard() {
               )}
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-lg transition-colors ${
-                  isDark
-                    ? 'text-gray-400 hover:bg-[#330054] hover:text-white'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-                }`}
                 aria-label="Alternar tema"
+                className={`relative inline-flex items-center w-12 h-6 rounded-full transition-colors duration-300 focus:outline-none flex-shrink-0 ${
+                  isDark ? 'bg-[#ea0cac]' : 'bg-gray-300'
+                }`}
               >
-                {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                <span className={`absolute flex items-center justify-center w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
+                  isDark ? 'translate-x-6' : 'translate-x-0.5'
+                }`}>
+                  {isDark ? <Moon size={11} className="text-[#ea0cac]" /> : <Sun size={11} className="text-yellow-500" />}
+                </span>
               </button>
               <div className={`hidden md:block text-right`}>
                 <p className={`text-sm font-semibold leading-tight ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{user?.email}</p>
