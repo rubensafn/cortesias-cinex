@@ -76,46 +76,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (username: string, password: string) => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-login`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({ username, password }),
-        }
-      );
+      const { data: accountData, error: dbError } = await supabase
+        .from('user_accounts')
+        .select('id, username, role, password, approved')
+        .eq('username', username)
+        .maybeSingle();
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        return { error: new Error(data.error || 'Usuário ou senha incorretos') };
+      if (dbError) {
+        return { error: new Error('Erro ao verificar usuário') };
       }
 
-      if (data.session) {
-        localStorage.setItem('auth_session', JSON.stringify(data.session));
-
-        const role = (data.session.user?.role as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
-        const approved = data.session.user?.approved || false;
-
-        setUserRole(role);
-        setIsMaster(role === 'master_admin' || role === 'master');
-        setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
-        setIsApproved(approved);
-
-        const mockUser: User = {
-          id: data.session.user.id,
-          email: `${data.session.user.username}@cinex.com`,
-          user_metadata: {},
-          app_metadata: { role: data.session.user.role },
-          aud: 'authenticated',
-          created_at: new Date().toISOString(),
-        } as User;
-
-        setUser(mockUser);
+      if (!accountData || accountData.password !== password) {
+        return { error: new Error('Usuário ou senha incorretos') };
       }
+
+      const role = (accountData.role as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
+      const approved = accountData.approved ?? false;
+
+      const session = {
+        user: {
+          id: accountData.id,
+          username: accountData.username,
+          role: accountData.role,
+          approved: accountData.approved,
+        },
+      };
+
+      localStorage.setItem('auth_session', JSON.stringify(session));
+
+      setUserRole(role);
+      setIsMaster(role === 'master_admin' || role === 'master');
+      setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
+      setIsApproved(approved);
+
+      const mockUser: User = {
+        id: accountData.id,
+        email: `${accountData.username}@cinex.com`,
+        user_metadata: {},
+        app_metadata: { role: accountData.role },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+      } as User;
+
+      setUser(mockUser);
 
       return { error: null };
     } catch (error) {
