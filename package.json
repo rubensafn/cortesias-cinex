@@ -11,7 +11,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "env:show": "node -e \"require('dotenv').config({path:'.env'}); require('dotenv').config({path:'.env.development',override:false}); const url=process.env.VITE_SUPABASE_URL; console.log('Ambiente ativo:', url?.includes('eofwwzeqdwsmthiszuwa') ? 'PRODUCAO (eofww...)' : url?.includes('gdtfwmqbvsqtxtccrydv') ? 'DEV (gdtfw...)' : url);\""
+    "env:show": "node -e \"require('dotenv').config({path:'.env'}); require('dotenv').config({path:'.env.development',override:false}); const url=process.env.VITE_SUPABASE_URL; console.log('Ambiente ativo:', url?.includes('eofwwzeqdwsmthiszuwa') ? 'PRODUCAO (eofww...)' : url?.includes('gdtfwmqbvsqtxtccrydv') ? 'DEV (gdtfw...)' : url);\"",
+    "env": "node scripts/env-switch.mjs",
+    "env:prod": "node scripts/env-switch.mjs prod",
+    "env:dev": "node scripts/env-switch.mjs dev",
+    "env:status": "node scripts/env-switch.mjs status"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
