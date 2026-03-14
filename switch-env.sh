@@ -27,11 +27,17 @@ status() {
 
 case "$1" in
   prod)
-    printf "\nVITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\n" "$PROD_URL" "$PROD_KEY" > .env
+    cat > .env << EOF
+VITE_SUPABASE_URL=$PROD_URL
+VITE_SUPABASE_ANON_KEY=$PROD_KEY
+EOF
     echo "Trocado para PRODUCAO"
     ;;
   dev)
-    printf "\nVITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\n" "$DEV_URL" "$DEV_KEY" > .env
+    cat > .env << EOF
+VITE_SUPABASE_URL=$DEV_URL
+VITE_SUPABASE_ANON_KEY=$DEV_KEY
+EOF
     echo "Trocado para DESENVOLVIMENTO"
     ;;
   status)
