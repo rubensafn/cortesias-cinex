@@ -7,16 +7,12 @@ DEV_URL="https://gdtfwmqbvsqtxtccrydv.supabase.co"
 DEV_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkdGZ3bXFidnNxdHh0Y2NyeWR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0MDQyMzEsImV4cCI6MjA4ODk4MDIzMX0._tNQNsL332F0qfByCTmcBFNoLq6Cd8YIJcercKMtc0g"
 
 if [ "$1" = "prod" ]; then
-  cat > .env << EOF
-VITE_SUPABASE_URL=$PROD_URL
-VITE_SUPABASE_ANON_KEY=$PROD_KEY
-EOF
+  echo "VITE_SUPABASE_URL=$PROD_URL" > .env
+  echo "VITE_SUPABASE_ANON_KEY=$PROD_KEY" >> .env
   echo "Trocado para PRODUCAO"
 elif [ "$1" = "dev" ]; then
-  cat > .env << EOF
-VITE_SUPABASE_URL=$DEV_URL
-VITE_SUPABASE_ANON_KEY=$DEV_KEY
-EOF
+  echo "VITE_SUPABASE_URL=$DEV_URL" > .env
+  echo "VITE_SUPABASE_ANON_KEY=$DEV_KEY" >> .env
   echo "Trocado para DESENVOLVIMENTO"
 elif [ "$1" = "status" ]; then
   CURRENT=$(grep VITE_SUPABASE_URL .env 2>/dev/null | cut -d= -f2)
