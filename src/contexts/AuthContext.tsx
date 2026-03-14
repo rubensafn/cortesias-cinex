@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsMaster(role === 'master_admin' || role === 'master');
           setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
           setIsApproved(approved);
+          setLoading(false);
         } catch (e) {
           localStorage.removeItem('auth_session');
           setLoading(false);
