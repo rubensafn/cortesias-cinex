@@ -5,17 +5,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Sparkles, CheckCircle, Send, Mail, AlertCircle } from 'lucide-react';
 import { TicketArt } from './TicketArt';
 
-const UNITS: { name: string; prefix: string }[] = [
-  { name: 'Cinex Goiania', prefix: 'CINEXGYN' },
-  { name: 'Cinex Araguaina', prefix: 'CINEXAUX' },
-  { name: 'Cinex Palmas', prefix: 'CINEXPWM' },
-  { name: 'Cinex Gurupi', prefix: 'CINEXGUR' },
-  { name: 'Cinex Sao Luis', prefix: 'CINEXSLZ' },
-];
-
 interface FormData {
   quantidade: number;
-  unidade: string;
   solicitante: string;
   motivo: string;
   data_validade: string;
@@ -34,7 +25,6 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
   const [success, setSuccess] = useState<{ count: number; codes: string[]; validade: string; emailSent: boolean; emailError?: string } | null>(null);
   const [formData, setFormData] = useState<FormData>({
     quantidade: 1,
-    unidade: 'Cinex Goiania',
     solicitante: '',
     motivo: '',
     data_validade: '',
@@ -51,11 +41,6 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
     }));
   };
 
-  const getUnitPrefix = (unitName: string): string => {
-    const unit = UNITS.find(u => u.name === unitName);
-    return unit?.prefix || 'CINEXGYN';
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -63,48 +48,28 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
     setLoading(true);
 
     try {
-      const prefix = getUnitPrefix(formData.unidade);
-
       const { data: codes, error: rpcError } = await supabase
-        .rpc('reserve_ticket_codes', {
+        .rpc('claim_imported_codes', {
           quantity: formData.quantidade,
-          seq_prefix: prefix,
         });
 
       if (rpcError) {
-        console.error('RPC Error:', rpcError);
         throw new Error(rpcError.message);
       }
 
       if (!codes || codes.length === 0) {
-        throw new Error('Nenhum codigo gerado');
+        throw new Error('Nenhum codigo disponivel no pool. Importe novos codigos primeiro.');
       }
 
       const generatedCodes = (codes as { code: string }[]).map(c => c.code);
 
-      const { data: sequenceId, error: sequenceError } = await supabase
-        .rpc('get_sequence_id_by_prefix', {
-          seq_prefix: prefix,
-        });
-
-      if (sequenceError) {
-        console.error('Sequence Error:', sequenceError);
-        throw new Error(sequenceError.message);
-      }
-
-      if (!sequenceId) {
-        throw new Error('Sequência de códigos não encontrada');
-      }
-
       const insertData = {
-        sequence_id: sequenceId,
         code: generatedCodes[0],
         created_by: user?.id,
         solicitante: formData.solicitante,
         motivo: formData.motivo,
         data_validade: formData.data_validade || null,
         email_entrega: formData.email_entrega,
-        unidade: formData.unidade,
         numero_ingressos: formData.quantidade,
         status: 'ativo',
         codigo_inicial: generatedCodes[0],
@@ -113,7 +78,6 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
 
       const { error: insertError } = await supabase.from('cortesias').insert(insertData);
       if (insertError) {
-        console.error('Insert Error:', insertError);
         throw new Error(insertError.message);
       }
 
@@ -135,7 +99,6 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
             body: JSON.stringify({
               to: formData.email_entrega,
               solicitante: formData.solicitante,
-              unidade: formData.unidade,
               motivo: formData.motivo,
               cortesias: generatedCodes.map(codigo => ({
                 codigo,
@@ -166,7 +129,6 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
 
       setFormData({
         quantidade: 1,
-        unidade: 'Cinex Goiania',
         solicitante: '',
         motivo: '',
         data_validade: '',
@@ -290,25 +252,6 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
 
           <div>
             <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-              Unidade <span className="text-[#ea0cac]">*</span>
-            </label>
-            <select
-              name="unidade"
-              value={formData.unidade}
-              onChange={handleChange}
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#a700ff] focus:border-transparent transition-all ${isDark ? 'bg-[#330054] border-[#a700ff]/30 text-white' : 'border-gray-300 text-gray-900'}`}
-              required
-            >
-              {UNITS.map(unit => (
-                <option key={unit.prefix} value={unit.name}>
-                  {unit.name} ({unit.prefix})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
               Solicitante <span className="text-[#ea0cac]">*</span>
             </label>
             <input
@@ -388,7 +331,6 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
             onClick={() => {
               setFormData({
                 quantidade: 1,
-                unidade: 'Cinex Goiania',
                 solicitante: '',
                 motivo: '',
                 data_validade: '',

@@ -5,16 +5,17 @@ import GenerateTicketsForm from './GenerateTicketsForm';
 import TicketsViewer from './TicketsViewer';
 import AdminDashboard from './AdminDashboard';
 import UserManagement from './UserManagement';
-import CodeSequenceConfig from './CodeSequenceConfig';
-import { LogOut, Plus, List, BarChart3, Users, Settings, Menu, X, Sun, Moon } from 'lucide-react';
+import ImportCodesModal from './ImportCodesModal';
+import { LogOut, Plus, List, BarChart3, Users, Upload, Menu, X, Sun, Moon } from 'lucide-react';
 
-type View = 'list' | 'form' | 'admin' | 'users' | 'config';
+type View = 'list' | 'form' | 'admin' | 'users';
 
 export default function Dashboard() {
   const { signOut, user, isAdmin, isMaster, userRole } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<View>('list');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const isDark = theme === 'dark';
 
@@ -32,7 +33,6 @@ export default function Dashboard() {
     { id: 'form', label: 'Nova Cortesia', icon: Plus },
     { id: 'admin', label: 'Estatisticas', icon: BarChart3, adminOnly: true },
     { id: 'users', label: 'Usuarios', icon: Users, adminOnly: true },
-    { id: 'config', label: 'Codigos', icon: Settings, adminOnly: true },
   ];
 
   const visibleItems = navItems.filter(item => {
@@ -72,6 +72,19 @@ export default function Dashboard() {
             </div>
 
             <div className="flex items-center gap-3">
+              {isAdmin && (
+                <button
+                  onClick={() => setImportModalOpen(true)}
+                  className={`hidden md:flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    isDark
+                      ? 'bg-[#ea0cac]/20 text-[#ea0cac] hover:bg-[#ea0cac]/30'
+                      : 'bg-[#ea0cac]/10 text-[#ea0cac] hover:bg-[#ea0cac]/20'
+                  }`}
+                >
+                  <Upload size={15} />
+                  Importar Codigos
+                </button>
+              )}
               <button
                 onClick={toggleTheme}
                 className={`p-2 rounded-lg transition-colors ${
@@ -135,6 +148,17 @@ export default function Dashboard() {
                 {item.label}
               </button>
             ))}
+            {isAdmin && (
+              <button
+                onClick={() => { setImportModalOpen(true); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                  isDark ? 'text-[#ea0cac] hover:bg-[#ea0cac]/20' : 'text-[#ea0cac] hover:bg-[#ea0cac]/10'
+                }`}
+              >
+                <Upload size={16} />
+                Importar Codigos
+              </button>
+            )}
             <button
               onClick={handleSignOut}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors mt-2 ${
@@ -155,8 +179,11 @@ export default function Dashboard() {
         {view === 'form' && <GenerateTicketsForm onSuccess={() => navigate('list')} />}
         {view === 'admin' && isAdmin && <AdminDashboard />}
         {view === 'users' && isAdmin && <UserManagement />}
-        {view === 'config' && isAdmin && <CodeSequenceConfig />}
       </main>
+
+      {importModalOpen && isAdmin && (
+        <ImportCodesModal onClose={() => setImportModalOpen(false)} />
+      )}
 
       <footer className={`text-center py-6 text-xs border-t mt-8 ${isDark ? 'text-gray-500 border-[#330054]' : 'text-gray-300 border-gray-100'}`}>
         v3.0.0 &mdash; 2025 Cinex Sistema de Cortesias
