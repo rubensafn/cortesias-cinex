@@ -5,7 +5,9 @@ import Dashboard from './components/Dashboard';
 import { PendingApproval } from './components/PendingApproval';
 
 const DEV_SUPABASE_URL = 'gdtfwmqbvsqtxtccrydv';
-const isDevEnv = import.meta.env.VITE_SUPABASE_URL?.includes(DEV_SUPABASE_URL);
+const isDevEnv =
+  import.meta.env.VITE_SUPABASE_URL?.includes(DEV_SUPABASE_URL) &&
+  import.meta.env.MODE !== 'production';
 
 function DevBanner() {
   if (!isDevEnv) return null;
