@@ -66,8 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsApproved(approved);
         } catch (e) {
           localStorage.removeItem('auth_session');
+          setLoading(false);
         }
-        setLoading(false);
       })();
     } else {
       setLoading(false);
