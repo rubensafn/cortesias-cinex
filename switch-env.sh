@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 PROD_URL="https://eofwwzeqdwsmthiszuwa.supabase.co"
 PROD_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvZnd3emVxZHdzbXRoaXN6dXdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMjk1OTksImV4cCI6MjA4ODgwNTU5OX0.kTbZNI2LB8E8TMy1GSICG0D1gKeDiR9XBt2vDcqy_5c"
@@ -6,45 +6,48 @@ PROD_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6I
 DEV_URL="https://gdtfwmqbvsqtxtccrydv.supabase.co"
 DEV_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkdGZ3bXFidnNxdHh0Y2NyeWR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0MDQyMzEsImV4cCI6MjA4ODk4MDIzMX0._tNQNsL332F0qfByCTmcBFNoLq6Cd8YIJcercKMtc0g"
 
-usage() {
+if [ "$1" = "prod" ]; then
+  cat > .env << EOF
+VITE_SUPABASE_URL=$PROD_URL
+VITE_SUPABASE_ANON_KEY=$PROD_KEY
+EOF
+  echo "Trocado para PRODUCAO"
+elif [ "$1" = "dev" ]; then
+  cat > .env << EOF
+VITE_SUPABASE_URL=$DEV_URL
+VITE_SUPABASE_ANON_KEY=$DEV_KEY
+EOF
+  echo "Trocado para DESENVOLVIMENTO"
+elif [ "$1" = "status" ]; then
+  CURRENT=$(grep VITE_SUPABASE_URL .env 2>/dev/null | cut -d= -f2)
+  case "$CURRENT" in
+    *eofww*)
+      echo "Ambiente ativo: PRODUCAO (eofww...)"
+      ;;
+    *gdtfw*)
+      echo "Ambiente ativo: DESENVOLVIMENTO (gdtfw...)"
+      ;;
+    *)
+      echo "Ambiente ativo: desconhecido ($CURRENT)"
+      ;;
+  esac
+else
   echo "Uso: ./switch-env.sh [prod|dev|status]"
   echo ""
   echo "  prod    - Aponta .env para producao (eofww...)"
   echo "  dev     - Aponta .env para desenvolvimento (gdtfw...)"
   echo "  status  - Mostra qual ambiente esta ativo"
-}
-
-status() {
-  CURRENT=$(grep VITE_SUPABASE_URL .env | cut -d= -f2)
-  if [[ "$CURRENT" == *"eofww"* ]]; then
-    echo "Ambiente ativo: PRODUCAO (eofww...)"
-  elif [[ "$CURRENT" == *"gdtfw"* ]]; then
-    echo "Ambiente ativo: DESENVOLVIMENTO (gdtfw...)"
-  else
-    echo "Ambiente ativo: desconhecido ($CURRENT)"
-  fi
-}
-
-case "$1" in
-  prod)
-    cat > .env << EOF
-VITE_SUPABASE_URL=$PROD_URL
-VITE_SUPABASE_ANON_KEY=$PROD_KEY
-EOF
-    echo "Trocado para PRODUCAO"
-    ;;
-  dev)
-    cat > .env << EOF
-VITE_SUPABASE_URL=$DEV_URL
-VITE_SUPABASE_ANON_KEY=$DEV_KEY
-EOF
-    echo "Trocado para DESENVOLVIMENTO"
-    ;;
-  status)
-    status
-    ;;
-  *)
-    usage
-    status
-    ;;
-esac
+  echo ""
+  CURRENT=$(grep VITE_SUPABASE_URL .env 2>/dev/null | cut -d= -f2)
+  case "$CURRENT" in
+    *eofww*)
+      echo "Ambiente ativo: PRODUCAO (eofww...)"
+      ;;
+    *gdtfw*)
+      echo "Ambiente ativo: DESENVOLVIMENTO (gdtfw...)"
+      ;;
+    *)
+      echo "Ambiente ativo: desconhecido ($CURRENT)"
+      ;;
+  esac
+fi
