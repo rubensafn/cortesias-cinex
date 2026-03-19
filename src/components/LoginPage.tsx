@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { LogIn, Sun, Moon } from 'lucide-react';
+import { LogIn, Sun, Moon, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { signIn, signUp } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -133,7 +134,7 @@ export default function LoginPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#a700ff] focus:border-transparent transition-all ${isDark ? 'bg-[#330054] border-[#a700ff]/30 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#a700ff] focus:border-transparent transition-all ${isDark ? 'bg-[#330054] border-[#a700ff]/30 text-white placeholder-[#9a7aaa]' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
                 required
                 autoComplete="username"
                 placeholder="Digite seu usuario"
@@ -144,15 +145,26 @@ export default function LoginPage() {
               <label htmlFor="password" className={`block text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                 Senha
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#a700ff] focus:border-transparent transition-all ${isDark ? 'bg-[#330054] border-[#a700ff]/30 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
-                required
-                autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#a700ff] focus:border-transparent transition-all ${isDark ? 'bg-[#330054] border-[#a700ff]/30 text-white placeholder-[#9a7aaa]' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'}`}
+                  required
+                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                  placeholder="Digite sua senha"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded transition-colors ${isDark ? 'text-[#9a7aaa] hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
