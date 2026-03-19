@@ -20,7 +20,7 @@ interface GenerateTicketsFormProps {
 async function claimCodes(quantity: number): Promise<{ codes: string[]; error: string | null }> {
   const today = new Date().toISOString().split('T')[0];
 
-  const { data: available, error: countErr } = await supabase
+  const { count: availableCount, error: countErr } = await supabase
     .from('imported_codes')
     .select('id', { count: 'exact', head: true })
     .eq('used', false)
@@ -30,18 +30,14 @@ async function claimCodes(quantity: number): Promise<{ codes: string[]; error: s
     return { codes: [], error: countErr.message };
   }
 
-  const availableCount = available?.length ?? 0;
-
-  if (availableCount === 0) {
-    const { data: expiredCodes } = await supabase
+  if (!availableCount || availableCount === 0) {
+    const { count: expiredCount } = await supabase
       .from('imported_codes')
       .select('id', { count: 'exact', head: true })
       .eq('used', false)
       .lt('expiry_date', today);
 
-    const hasExpired = (expiredCodes?.length ?? 0) > 0;
-
-    if (hasExpired) {
+    if (expiredCount && expiredCount > 0) {
       return {
         codes: [],
         error: 'Todos os vouchers disponiveis estao vencidos. Contate o administrador para repor os vouchers.',

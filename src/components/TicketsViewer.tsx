@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Trash2, ChevronDown, ChevronUp, MapPin, Calendar, Mail, FileDown, AlertCircle } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronUp, Calendar, Mail, FileDown, AlertCircle } from 'lucide-react';
 import { TicketArt, generateBatchPDF } from './TicketArt';
 
 interface CortesiaRecord {
   id: string;
   solicitante: string;
   motivo: string;
-  unidade: string;
   numero_ingressos: number;
   data_validade: string | null;
   email_entrega: string;
@@ -160,9 +159,6 @@ export default function TicketsViewer() {
                     <p className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{record.solicitante}</p>
                     <p className={`text-sm line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{record.motivo}</p>
                     <div className="flex flex-wrap items-center gap-3 mt-1.5">
-                      <span className={`flex items-center gap-1 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        <MapPin size={11} /> {record.unidade}
-                      </span>
                       {record.data_validade && (
                         <span className={`flex items-center gap-1 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                           <Calendar size={11} /> {new Date(record.data_validade + 'T12:00:00').toLocaleDateString('pt-BR')}
