@@ -6,9 +6,10 @@ import TicketsViewer from './TicketsViewer';
 import AdminDashboard from './AdminDashboard';
 import UserManagement from './UserManagement';
 import ImportCodesModal from './ImportCodesModal';
-import { LogOut, Plus, List, BarChart3, Users, Upload, Menu, X, Sun, Moon } from 'lucide-react';
+import VouchersPool from './VouchersPool';
+import { LogOut, Plus, List, BarChart3, Users, Upload, Menu, X, Sun, Moon, Package } from 'lucide-react';
 
-type View = 'list' | 'form' | 'admin' | 'users';
+type View = 'list' | 'form' | 'admin' | 'users' | 'vouchers';
 
 export default function Dashboard() {
   const { signOut, user, isAdmin, isMaster, userRole } = useAuth();
@@ -31,6 +32,7 @@ export default function Dashboard() {
   const navItems: { id: View; label: string; icon: React.ElementType; adminOnly?: boolean; masterOnly?: boolean }[] = [
     { id: 'list', label: 'Cortesias', icon: List },
     { id: 'form', label: 'Nova Cortesia', icon: Plus },
+    { id: 'vouchers', label: 'Vouchers', icon: Package },
     { id: 'admin', label: 'Estatisticas', icon: BarChart3, adminOnly: true },
     { id: 'users', label: 'Usuarios', icon: Users, adminOnly: true },
   ];
@@ -179,6 +181,7 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {view === 'list' && <TicketsViewer />}
         {view === 'form' && <GenerateTicketsForm onSuccess={() => navigate('list')} />}
+        {view === 'vouchers' && <VouchersPool />}
         {view === 'admin' && isAdmin && <AdminDashboard />}
         {view === 'users' && isAdmin && <UserManagement />}
       </main>
