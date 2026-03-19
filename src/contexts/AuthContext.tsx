@@ -129,22 +129,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (username: string, password: string) => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-register`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({ username, password }),
-        }
-      );
+      if (username.length < 3) {
+        return { error: new Error('Usuario deve ter pelo menos 3 caracteres') };
+      }
+      if (password.length < 6) {
+        return { error: new Error('Senha deve ter pelo menos 6 caracteres') };
+      }
 
-      const data = await response.json();
+      const { data: existingUser } = await supabase
+        .from('user_accounts')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle();
 
-      if (!response.ok) {
-        return { error: new Error(data.error || 'Erro ao criar conta') };
+      if (existingUser) {
+        return { error: new Error('Usuario ja existe') };
+      }
+
+      const { error: insertError } = await supabase
+        .from('user_accounts')
+        .insert({
+          username,
+          password,
+          role: 'user',
+          approved: false,
+        });
+
+      if (insertError) {
+        return { error: new Error(insertError.message || 'Erro ao criar conta') };
       }
 
       return { error: null };
