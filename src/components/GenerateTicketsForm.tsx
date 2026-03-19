@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Sparkles, CheckCircle, Send, Mail, AlertCircle } from 'lucide-react';
+import { Sparkles, CheckCircle, Send, Mail, AlertCircle, ShieldAlert } from 'lucide-react';
 import { TicketArt } from './TicketArt';
 
 interface FormData {
@@ -15,6 +15,75 @@ interface FormData {
 
 interface GenerateTicketsFormProps {
   onSuccess: () => void;
+}
+
+async function claimCodes(quantity: number): Promise<{ codes: string[]; error: string | null }> {
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data: available, error: countErr } = await supabase
+    .from('imported_codes')
+    .select('id', { count: 'exact', head: true })
+    .eq('used', false)
+    .gte('expiry_date', today);
+
+  if (countErr) {
+    return { codes: [], error: countErr.message };
+  }
+
+  const availableCount = available?.length ?? 0;
+
+  if (availableCount === 0) {
+    const { data: expiredCodes } = await supabase
+      .from('imported_codes')
+      .select('id', { count: 'exact', head: true })
+      .eq('used', false)
+      .lt('expiry_date', today);
+
+    const hasExpired = (expiredCodes?.length ?? 0) > 0;
+
+    if (hasExpired) {
+      return {
+        codes: [],
+        error: 'Todos os vouchers disponiveis estao vencidos. Contate o administrador para repor os vouchers.',
+      };
+    }
+    return {
+      codes: [],
+      error: 'Nenhum codigo disponivel no pool. Importe novos codigos primeiro.',
+    };
+  }
+
+  const { data: toClaimRows, error: fetchErr } = await supabase
+    .from('imported_codes')
+    .select('id, code')
+    .eq('used', false)
+    .gte('expiry_date', today)
+    .order('expiry_date', { ascending: true })
+    .order('created_at', { ascending: true })
+    .limit(quantity);
+
+  if (fetchErr || !toClaimRows || toClaimRows.length === 0) {
+    return { codes: [], error: fetchErr?.message || 'Erro ao buscar codigos disponiveis.' };
+  }
+
+  if (toClaimRows.length < quantity) {
+    return {
+      codes: [],
+      error: `Apenas ${toClaimRows.length} codigos disponiveis (nao vencidos). Solicitado: ${quantity}`,
+    };
+  }
+
+  const ids = toClaimRows.map(r => r.id);
+  const { error: updateErr } = await supabase
+    .from('imported_codes')
+    .update({ used: true, used_at: new Date().toISOString() })
+    .in('id', ids);
+
+  if (updateErr) {
+    return { codes: [], error: `Erro ao marcar codigos como usados: ${updateErr.message}` };
+  }
+
+  return { codes: toClaimRows.map(r => r.code), error: null };
 }
 
 export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormProps) {
@@ -48,20 +117,15 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
     setLoading(true);
 
     try {
-      const { data: codes, error: rpcError } = await supabase
-        .rpc('claim_imported_codes', {
-          quantity: formData.quantidade,
-        });
+      const { codes: generatedCodes, error: claimError } = await claimCodes(formData.quantidade);
 
-      if (rpcError) {
-        throw new Error(rpcError.message);
+      if (claimError) {
+        throw new Error(claimError);
       }
 
-      if (!codes || codes.length === 0) {
+      if (!generatedCodes || generatedCodes.length === 0) {
         throw new Error('Nenhum codigo disponivel no pool. Importe novos codigos primeiro.');
       }
-
-      const generatedCodes = (codes as { code: string }[]).map(c => c.code);
 
       const insertData = {
         code: generatedCodes[0],
@@ -137,11 +201,13 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido';
       console.error('Error generating:', err);
-      setError(`Erro ao gerar cortesias: ${msg}`);
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
+
+  const isExpiredVoucherError = error.includes('vencidos') || error.includes('Contate o administrador');
 
   if (success) {
     return (
@@ -225,8 +291,32 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
       </div>
 
       {error && (
-        <div className={`mb-6 p-4 border-l-4 rounded text-sm ${isDark ? 'bg-red-900/30 border-red-500 text-red-400' : 'bg-red-50 border-red-500 text-red-700'}`}>
-          {error}
+        <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 ${
+          isExpiredVoucherError
+            ? isDark ? 'bg-orange-900/30 border-orange-500/30' : 'bg-orange-50 border-orange-300'
+            : isDark ? 'bg-red-900/30 border-red-500/30' : 'bg-red-50 border-red-300'
+        }`}>
+          {isExpiredVoucherError ? (
+            <ShieldAlert size={20} className={isDark ? 'text-orange-400 mt-0.5 shrink-0' : 'text-orange-600 mt-0.5 shrink-0'} />
+          ) : (
+            <AlertCircle size={20} className={isDark ? 'text-red-400 mt-0.5 shrink-0' : 'text-red-600 mt-0.5 shrink-0'} />
+          )}
+          <div>
+            <p className={`text-sm font-semibold ${
+              isExpiredVoucherError
+                ? isDark ? 'text-orange-400' : 'text-orange-700'
+                : isDark ? 'text-red-400' : 'text-red-700'
+            }`}>
+              {isExpiredVoucherError ? 'Vouchers Vencidos' : 'Erro'}
+            </p>
+            <p className={`text-sm mt-1 ${
+              isExpiredVoucherError
+                ? isDark ? 'text-orange-300/80' : 'text-orange-600'
+                : isDark ? 'text-red-300/80' : 'text-red-600'
+            }`}>
+              {error}
+            </p>
+          </div>
         </div>
       )}
 

@@ -140,6 +140,39 @@ CREATE POLICY "Allow anon delete cortesias"
   ON cortesias FOR DELETE TO anon, authenticated USING (true);
 
 -- ============================================================
+-- TABELA: imported_codes
+-- ============================================================
+CREATE TABLE IF NOT EXISTS imported_codes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code text UNIQUE NOT NULL,
+  expiry_date date NOT NULL,
+  used boolean DEFAULT false,
+  imported_by uuid REFERENCES user_accounts(id) ON DELETE SET NULL,
+  used_by uuid REFERENCES user_accounts(id) ON DELETE SET NULL,
+  used_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE imported_codes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon select imported_codes" ON imported_codes;
+DROP POLICY IF EXISTS "Allow anon insert imported_codes" ON imported_codes;
+DROP POLICY IF EXISTS "Allow anon update imported_codes" ON imported_codes;
+DROP POLICY IF EXISTS "Allow anon delete imported_codes" ON imported_codes;
+
+CREATE POLICY "Allow anon select imported_codes"
+  ON imported_codes FOR SELECT TO anon, authenticated USING (true);
+
+CREATE POLICY "Allow anon insert imported_codes"
+  ON imported_codes FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+CREATE POLICY "Allow anon update imported_codes"
+  ON imported_codes FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow anon delete imported_codes"
+  ON imported_codes FOR DELETE TO anon, authenticated USING (true);
+
+-- ============================================================
 -- FUNCOES
 -- ============================================================
 

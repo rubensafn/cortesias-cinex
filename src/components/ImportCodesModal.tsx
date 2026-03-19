@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { X, Upload, FileText, CheckCircle, AlertCircle, Loader2, Database } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Calendar } from 'lucide-react';
 
 interface ImportCodesModalProps {
   onClose: () => void;
@@ -18,7 +18,39 @@ interface ImportResult {
 interface PoolStats {
   available: number;
   used: number;
+  expired: number;
   total: number;
+}
+
+interface ParsedRow {
+  code: string;
+  expiry_date: string;
+}
+
+function parseDate(raw: string): string | null {
+  const trimmed = raw.trim().replace(/['"]/g, '');
+  if (!trimmed) return null;
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  const brMatch = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  if (brMatch) {
+    const [, d, m, y] = brMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  const brShort = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2})$/);
+  if (brShort) {
+    const [, d, m, yy] = brShort;
+    const year = parseInt(yy) > 50 ? `19${yy}` : `20${yy}`;
+    return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  return null;
 }
 
 export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
@@ -28,7 +60,8 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
 
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string[]>([]);
+  const [preview, setPreview] = useState<ParsedRow[]>([]);
+  const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState('');
@@ -40,12 +73,14 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     setLoadingStats(true);
     const { data, error: statsError } = await supabase
       .from('imported_codes')
-      .select('used');
+      .select('used, expiry_date');
 
     if (!statsError && data) {
-      const available = data.filter(r => !r.used).length;
+      const today = new Date().toISOString().split('T')[0];
+      const available = data.filter(r => !r.used && r.expiry_date >= today).length;
       const used = data.filter(r => r.used).length;
-      setStats({ available, used, total: data.length });
+      const expired = data.filter(r => !r.used && r.expiry_date < today).length;
+      setStats({ available, used, expired, total: data.length });
     }
     setLoadingStats(false);
   }, []);
@@ -54,31 +89,55 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     loadStats();
   });
 
-  const parseCSV = (text: string): string[] => {
-    const codes: string[] = [];
+  const parseCSV = (text: string): { rows: ParsedRow[]; errors: string[] } => {
+    const rows: ParsedRow[] = [];
+    const errors: string[] = [];
+    const seenCodes = new Set<string>();
     const lines = text.split(/\r?\n/);
-    for (const line of lines) {
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
       const cols = line.split(/[,;\t]/);
-      for (const col of cols) {
-        const code = col.trim().replace(/['"]/g, '').toUpperCase();
-        if (code && code.length > 0) {
-          codes.push(code);
-        }
+      const rawCode = cols[0]?.trim().replace(/['"]/g, '').toUpperCase();
+      const rawDate = cols[1]?.trim() || '';
+
+      if (!rawCode || rawCode.length < 3) {
+        errors.push(`Linha ${i + 1}: codigo invalido ou vazio`);
+        continue;
       }
+
+      const expiryDate = parseDate(rawDate);
+      if (!expiryDate) {
+        errors.push(`Linha ${i + 1}: data de validade invalida ("${rawDate}")`);
+        continue;
+      }
+
+      if (seenCodes.has(rawCode)) {
+        errors.push(`Linha ${i + 1}: codigo "${rawCode}" duplicado no arquivo`);
+        continue;
+      }
+
+      seenCodes.add(rawCode);
+      rows.push({ code: rawCode, expiry_date: expiryDate });
     }
-    return [...new Set(codes)].filter(c => c.length >= 3);
+
+    return { rows, errors };
   };
 
   const handleFile = (f: File) => {
     setFile(f);
     setResult(null);
     setError('');
+    setParseErrors([]);
 
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
-      const codes = parseCSV(text);
-      setPreview(codes);
+      const { rows, errors } = parseCSV(text);
+      setPreview(rows);
+      setParseErrors(errors);
     };
     reader.readAsText(f);
   };
@@ -105,8 +164,9 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     let duplicates = 0;
     let errors = 0;
 
-    const rows = preview.map(code => ({
-      code,
+    const rows = preview.map(row => ({
+      code: row.code,
+      expiry_date: row.expiry_date,
       used: false,
       imported_by: user?.id ?? null,
     }));
@@ -135,9 +195,15 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
   const reset = () => {
     setFile(null);
     setPreview([]);
+    setParseErrors([]);
     setResult(null);
     setError('');
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const formatDateBR = (d: string) => {
+    const [y, m, day] = d.split('-');
+    return `${day}/${m}/${y}`;
   };
 
   return (
@@ -153,8 +219,8 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
               <Upload className="text-[#ea0cac]" size={22} />
             </div>
             <div>
-              <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Importar Codigos</h2>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Importe codigos validos de uma planilha CSV</p>
+              <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Importar Vouchers</h2>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Importe vouchers com codigo e validade de uma planilha CSV</p>
             </div>
           </div>
           <button
@@ -167,14 +233,18 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
 
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
           <div className={`rounded-xl p-4 border flex items-center gap-4 ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
-            <Database className={isDark ? 'text-[#a700ff]' : 'text-[#a700ff]'} size={20} />
+            <Database className="text-[#a700ff]" size={20} />
             {loadingStats ? (
               <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Carregando estatisticas...</span>
             ) : stats ? (
-              <div className="flex gap-6 text-sm flex-wrap">
+              <div className="flex gap-5 text-sm flex-wrap">
                 <div>
                   <span className={`font-bold text-lg ${isDark ? 'text-green-400' : 'text-green-600'}`}>{stats.available.toLocaleString()}</span>
                   <span className={`ml-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>disponiveis</span>
+                </div>
+                <div>
+                  <span className={`font-bold text-lg ${isDark ? 'text-orange-400' : 'text-orange-500'}`}>{stats.expired.toLocaleString()}</span>
+                  <span className={`ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>vencidos</span>
                 </div>
                 <div>
                   <span className={`font-bold text-lg ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>{stats.used.toLocaleString()}</span>
@@ -186,12 +256,18 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                 </div>
               </div>
             ) : (
-              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Nenhum codigo no banco ainda</span>
+              <span className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Nenhum voucher no banco ainda</span>
             )}
           </div>
 
           {!result && (
             <>
+              <div className={`rounded-xl p-3 border text-sm ${isDark ? 'bg-[#330054]/50 border-[#a700ff]/20 text-gray-300' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+                <p className="font-semibold mb-1">Formato esperado da planilha:</p>
+                <p>Coluna A: <strong>Codigo do Voucher</strong> | Coluna B: <strong>Data de Validade</strong></p>
+                <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-blue-600'}`}>A linha 1 (cabecalho) sera ignorada. Datas aceitas: DD/MM/AAAA ou AAAA-MM-DD</p>
+              </div>
+
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -214,10 +290,10 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                 />
                 {file ? (
                   <div className="flex flex-col items-center gap-2">
-                    <FileText className={isDark ? 'text-[#a700ff]' : 'text-[#a700ff]'} size={36} />
+                    <FileText className="text-[#a700ff]" size={36} />
                     <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{file.name}</p>
                     <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {preview.length} codigos detectados
+                      {preview.length} vouchers detectados
                     </p>
                   </div>
                 ) : (
@@ -227,31 +303,52 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                       Arraste o arquivo ou clique para selecionar
                     </p>
                     <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      CSV, TXT ou planilha com um codigo por celula/linha
+                      CSV ou TXT com duas colunas: Codigo e Validade
                     </p>
                   </div>
                 )}
               </div>
 
+              {parseErrors.length > 0 && (
+                <div className={`rounded-xl border p-4 ${isDark ? 'bg-orange-900/20 border-orange-500/30' : 'bg-orange-50 border-orange-200'}`}>
+                  <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-orange-400' : 'text-orange-600'}`}>
+                    Avisos de importacao ({parseErrors.length})
+                  </p>
+                  <div className="max-h-24 overflow-y-auto space-y-1">
+                    {parseErrors.slice(0, 20).map((err, i) => (
+                      <p key={i} className={`text-xs ${isDark ? 'text-orange-300/80' : 'text-orange-700'}`}>{err}</p>
+                    ))}
+                    {parseErrors.length > 20 && (
+                      <p className={`text-xs ${isDark ? 'text-orange-400/60' : 'text-orange-500'}`}>+{parseErrors.length - 20} mais...</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {preview.length > 0 && (
                 <div className={`rounded-xl border p-4 ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
                   <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Pre-visualizacao ({preview.length} codigos)
+                    Pre-visualizacao ({preview.length} vouchers)
                   </p>
-                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                    {preview.slice(0, 50).map((code, i) => (
-                      <span
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                    {preview.slice(0, 40).map((row, i) => (
+                      <div
                         key={i}
-                        className={`font-mono text-xs px-2 py-1 rounded border ${
-                          isDark ? 'bg-[#330054] border-[#a700ff]/30 text-[#ea0cac]' : 'bg-white border-gray-300 text-[#a700ff]'
+                        className={`font-mono text-xs px-2 py-1 rounded border flex items-center gap-1.5 ${
+                          isDark ? 'bg-[#330054] border-[#a700ff]/30' : 'bg-white border-gray-300'
                         }`}
                       >
-                        {code}
-                      </span>
+                        <span className={isDark ? 'text-[#ea0cac]' : 'text-[#a700ff]'}>{row.code}</span>
+                        <span className={isDark ? 'text-gray-600' : 'text-gray-300'}>|</span>
+                        <span className={`flex items-center gap-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <Calendar size={10} />
+                          {formatDateBR(row.expiry_date)}
+                        </span>
+                      </div>
                     ))}
-                    {preview.length > 50 && (
+                    {preview.length > 40 && (
                       <span className={`text-xs px-2 py-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        +{preview.length - 50} mais...
+                        +{preview.length - 40} mais...
                       </span>
                     )}
                   </div>
@@ -279,7 +376,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                   ) : (
                     <>
                       <Upload size={18} />
-                      Importar {preview.length > 0 ? `${preview.length} Codigos` : ''}
+                      Importar {preview.length > 0 ? `${preview.length} Vouchers` : ''}
                     </>
                   )}
                 </button>
@@ -323,7 +420,10 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                 <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
                   <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Pool atualizado</p>
                   <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Agora ha <span className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>{stats.available.toLocaleString()}</span> codigos disponiveis para uso.
+                    Agora ha <span className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>{stats.available.toLocaleString()}</span> vouchers disponiveis para uso
+                    {stats.expired > 0 && (
+                      <> e <span className={`font-bold ${isDark ? 'text-orange-400' : 'text-orange-500'}`}>{stats.expired.toLocaleString()}</span> vencidos</>
+                    )}.
                   </p>
                 </div>
               )}
