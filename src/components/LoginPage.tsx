@@ -162,7 +162,7 @@ export default function LoginPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded transition-colors text-[#ea0cac] hover:text-[#a700ff]"
                   tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                 </button>
               </div>
             </div>
