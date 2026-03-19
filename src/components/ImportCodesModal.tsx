@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -50,6 +51,16 @@ function parseDate(raw: string): string | null {
     return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
 
+  const serial = Number(trimmed);
+  if (!isNaN(serial) && serial > 30000 && serial < 100000) {
+    const epoch = new Date(1899, 11, 30);
+    const date = new Date(epoch.getTime() + serial * 86400000);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   return null;
 }
 
@@ -89,24 +100,18 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     loadStats();
   });
 
-  const parseCSV = (text: string): { rows: ParsedRow[]; errors: string[] } => {
+  const parseRows = (rawRows: string[][]): { rows: ParsedRow[]; errors: string[] } => {
     const rows: ParsedRow[] = [];
     const errors: string[] = [];
     const seenCodes = new Set<string>();
-    const lines = text.split(/\r?\n/);
 
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
+    for (let i = 1; i < rawRows.length; i++) {
+      const cols = rawRows[i];
+      const rawCode = (cols[0] ?? '').toString().trim().replace(/['"]/g, '').toUpperCase();
+      const rawDate = (cols[1] ?? '').toString().trim();
 
-      const cols = line.split(/[,;\t]/);
-      const rawCode = cols[0]?.trim().replace(/['"]/g, '').toUpperCase();
-      const rawDate = cols[1]?.trim() || '';
-
-      if (!rawCode || rawCode.length < 3) {
-        errors.push(`Linha ${i + 1}: codigo invalido ou vazio`);
-        continue;
-      }
+      if (!rawCode && !rawDate) continue;
+      if (!rawCode) continue;
 
       const expiryDate = parseDate(rawDate);
       if (!expiryDate) {
@@ -126,20 +131,46 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     return { rows, errors };
   };
 
+  const parseCSV = (text: string): { rows: ParsedRow[]; errors: string[] } => {
+    const lines = text.split(/\r?\n/);
+    const rawRows = lines.map(line => line.split(/[,;\t]/));
+    return parseRows(rawRows);
+  };
+
   const handleFile = (f: File) => {
     setFile(f);
     setResult(null);
     setError('');
     setParseErrors([]);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const { rows, errors } = parseCSV(text);
-      setPreview(rows);
-      setParseErrors(errors);
-    };
-    reader.readAsText(f);
+    const isExcel = /\.(xlsx?|xls)$/i.test(f.name);
+
+    if (isExcel) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array', raw: true });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawRows: string[][] = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          defval: '',
+          raw: false,
+        });
+        const { rows, errors } = parseRows(rawRows);
+        setPreview(rows);
+        setParseErrors(errors);
+      };
+      reader.readAsArrayBuffer(f);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const { rows, errors } = parseCSV(text);
+        setPreview(rows);
+        setParseErrors(errors);
+      };
+      reader.readAsText(f);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -220,7 +251,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
             </div>
             <div>
               <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Importar Vouchers</h2>
-              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Importe vouchers com codigo e validade de uma planilha CSV</p>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Importe vouchers com codigo e validade de uma planilha Excel ou CSV</p>
             </div>
           </div>
           <button
@@ -303,7 +334,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                       Arraste o arquivo ou clique para selecionar
                     </p>
                     <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      CSV ou TXT com duas colunas: Codigo e Validade
+                      Excel (.xlsx), CSV ou TXT com duas colunas: Codigo e Validade
                     </p>
                   </div>
                 )}
