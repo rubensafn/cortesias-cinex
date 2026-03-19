@@ -169,15 +169,20 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
           }
         );
 
-        const emailData = await emailRes.json();
-        if (emailData.success) {
-          emailSent = true;
+        if (!emailRes.ok && emailRes.status === 404) {
+          emailError = 'Funcao de email nao encontrada (nao deployada)';
         } else {
-          emailError = emailData.error || 'Falha ao enviar email';
+          const emailData = await emailRes.json();
+          if (emailData.success) {
+            emailSent = true;
+          } else {
+            emailError = emailData.error || 'Falha ao enviar email';
+          }
         }
-      } catch (emailErr) {
+      } catch (emailErr: unknown) {
         console.error('Email error:', emailErr);
-        emailError = 'Erro ao conectar com servico de email';
+        const detail = emailErr instanceof Error ? emailErr.message : '';
+        emailError = `Erro ao conectar com servico de email${detail ? `: ${detail}` : ''}`;
       }
 
       setSuccess({
