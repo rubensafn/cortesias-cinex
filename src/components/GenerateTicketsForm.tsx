@@ -159,6 +159,7 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
             body: JSON.stringify({
               to: formData.email_entrega,
               solicitante: formData.solicitante,
+              unidade: 'Cinex',
               motivo: formData.motivo,
               cortesias: generatedCodes.map(codigo => ({
                 codigo,

@@ -16,7 +16,7 @@ interface Cortesia {
 interface EmailPayload {
   to: string;
   solicitante: string;
-  unidade: string;
+  unidade?: string;
   motivo: string;
   cortesias: Cortesia[];
 }
@@ -137,7 +137,11 @@ Deno.serve(async (req: Request) => {
       throw new Error("RESEND_API_KEY not configured. Please add it to your Supabase Edge Function secrets.");
     }
 
-    const payload: EmailPayload = await req.json();
+    const rawPayload = await req.json();
+    const payload: EmailPayload = {
+      ...rawPayload,
+      unidade: rawPayload.unidade || "Cinex",
+    };
     console.log("Received payload:", JSON.stringify({ to: payload.to, cortesiasCount: payload.cortesias?.length }));
 
     if (!payload.to || !payload.cortesias || payload.cortesias.length === 0) {
