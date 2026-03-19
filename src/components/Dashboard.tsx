@@ -32,7 +32,7 @@ export default function Dashboard() {
   const navItems: { id: View; label: string; icon: React.ElementType; adminOnly?: boolean; masterOnly?: boolean }[] = [
     { id: 'list', label: 'Cortesias', icon: List },
     { id: 'form', label: 'Nova Cortesia', icon: Plus },
-    { id: 'vouchers', label: 'Vouchers', icon: Package },
+    { id: 'vouchers', label: 'Vouchers', icon: Package, adminOnly: true },
     { id: 'admin', label: 'Estatisticas', icon: BarChart3, adminOnly: true },
     { id: 'users', label: 'Usuarios', icon: Users, adminOnly: true },
   ];
@@ -181,7 +181,7 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {view === 'list' && <TicketsViewer />}
         {view === 'form' && <GenerateTicketsForm onSuccess={() => navigate('list')} />}
-        {view === 'vouchers' && <VouchersPool />}
+        {view === 'vouchers' && isAdmin && <VouchersPool />}
         {view === 'admin' && isAdmin && <AdminDashboard />}
         {view === 'users' && isAdmin && <UserManagement />}
       </main>
