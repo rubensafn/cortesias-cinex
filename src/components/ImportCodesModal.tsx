@@ -190,32 +190,53 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     setLoading(true);
     setError('');
 
-    const BATCH_SIZE = 500;
     let inserted = 0;
     let duplicates = 0;
     let errors = 0;
+    let lastError = '';
 
     const rows = preview.map(row => ({
       code: row.code,
       expiry_date: row.expiry_date,
       used: false,
-      imported_by: user?.id ?? null,
     }));
 
+    const BATCH_SIZE = 100;
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
+
       const { error: insertError, data } = await supabase
         .from('imported_codes')
         .upsert(batch, { onConflict: 'code', ignoreDuplicates: true })
         .select('id');
 
       if (insertError) {
-        errors += batch.length;
+        lastError = insertError.message;
+        for (const row of batch) {
+          const { error: singleErr } = await supabase
+            .from('imported_codes')
+            .upsert(row, { onConflict: 'code', ignoreDuplicates: true });
+
+          if (singleErr) {
+            if (singleErr.message.includes('duplicate') || singleErr.code === '23505') {
+              duplicates++;
+            } else {
+              errors++;
+              lastError = singleErr.message;
+            }
+          } else {
+            inserted++;
+          }
+        }
       } else {
         const insertedCount = data?.length ?? 0;
         inserted += insertedCount;
         duplicates += batch.length - insertedCount;
       }
+    }
+
+    if (errors > 0) {
+      setError(`${errors} erro(s): ${lastError}`);
     }
 
     setResult({ total: preview.length, inserted, duplicates, errors });
