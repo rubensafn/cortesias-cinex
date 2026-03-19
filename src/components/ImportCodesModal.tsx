@@ -468,6 +468,13 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                 </div>
               </div>
 
+              {error && (
+                <div className={`p-4 rounded-xl border flex items-start gap-2 text-sm ${isDark ? 'bg-red-900/30 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span className="break-all">{error}</span>
+                </div>
+              )}
+
               {stats && (
                 <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
                   <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Pool atualizado</p>
