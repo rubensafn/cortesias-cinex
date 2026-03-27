@@ -17,8 +17,8 @@ const CORTESIAS_DATE_Y     = 0.712;   // % do topo onde cai a validade
 // ── Empresa ────────────────────────────────────────────────────────────────
 const EMPRESA_FRENTE       = '/EMPRESA_INGRESSO_FRENTE_SEMTEXTO.png';
 const EMPRESA_VERSO        = '/EMPRESA_INGRESSO_VERSO.png';
-const EMPRESA_CODE_Y       = 0.740;   // % do topo — campo CINEX0001
-const EMPRESA_DATE_Y       = 0.588;   // % do topo — campo 31.12.2026
+const EMPRESA_CODE_Y       = 0.815;   // % do topo — dentro da caixinha do código
+const EMPRESA_DATE_Y       = 0.578;   // % do topo — campo da data de validade
 
 function formatDate(data_validade?: string | null) {
   if (!data_validade) return '';
