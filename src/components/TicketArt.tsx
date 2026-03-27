@@ -17,9 +17,9 @@ const CORTESIAS_DATE_Y     = 0.712;   // % do topo onde cai a validade
 // ── Empresa ────────────────────────────────────────────────────────────────
 const EMPRESA_FRENTE         = '/EMPRESA_INGRESSO_FRENTE_SEMTEXTO.png';
 const EMPRESA_VERSO          = '/EMPRESA_INGRESSO_VERSO.png';
-const EMPRESA_CODE_Y         = 0.760;   // % do topo — contorno vermelho/rosa
-const EMPRESA_DATE_LABEL_Y   = 0.855;   // % do topo — "VALIDADE:" no shape rosa
-const EMPRESA_DATE_VALUE_Y   = 0.875;   // % do topo — valor da data
+const EMPRESA_CODE_Y         = 0.823;   // % do topo — contorno vermelho/rosa (y≈875)
+const EMPRESA_DATE_LABEL_Y   = 0.694;   // % do topo — "VALIDADE:" no shape rosa (y≈738)
+const EMPRESA_DATE_VALUE_Y   = 0.717;   // % do topo — valor da data (y≈762)
 
 function formatDate(data_validade?: string | null) {
   if (!data_validade) return '';
