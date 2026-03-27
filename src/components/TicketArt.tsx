@@ -15,10 +15,11 @@ const CORTESIAS_CODE_Y     = 0.515;   // % do topo onde cai o código
 const CORTESIAS_DATE_Y     = 0.712;   // % do topo onde cai a validade
 
 // ── Empresa ────────────────────────────────────────────────────────────────
-const EMPRESA_FRENTE       = '/EMPRESA_INGRESSO_FRENTE_SEMTEXTO.png';
-const EMPRESA_VERSO        = '/EMPRESA_INGRESSO_VERSO.png';
-const EMPRESA_CODE_Y       = 0.815;   // % do topo — dentro da caixinha do código
-const EMPRESA_DATE_Y       = 0.578;   // % do topo — campo da data de validade
+const EMPRESA_FRENTE         = '/EMPRESA_INGRESSO_FRENTE_SEMTEXTO.png';
+const EMPRESA_VERSO          = '/EMPRESA_INGRESSO_VERSO.png';
+const EMPRESA_CODE_Y         = 0.760;   // % do topo — contorno vermelho/rosa
+const EMPRESA_DATE_LABEL_Y   = 0.855;   // % do topo — "VALIDADE:" no shape rosa
+const EMPRESA_DATE_VALUE_Y   = 0.875;   // % do topo — valor da data
 
 function formatDate(data_validade?: string | null) {
   if (!data_validade) return '';
@@ -46,7 +47,7 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
 
   const imagePath     = isEmpresa ? EMPRESA_FRENTE    : CORTESIAS_IMAGE;
   const codeTopPct    = isEmpresa ? EMPRESA_CODE_Y    : CORTESIAS_CODE_Y;
-  const dateTopPct    = isEmpresa ? EMPRESA_DATE_Y    : CORTESIAS_DATE_Y;
+  const dateTopPct    = isEmpresa ? EMPRESA_DATE_LABEL_Y : CORTESIAS_DATE_Y;
   const validadeStr   = formatDate(data_validade);
 
   useEffect(() => {
@@ -71,11 +72,18 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
 
     // código
     pdf.setFontSize(isEmpresa ? 11 : 12);
-    pdf.text(codigo,      pdfW / 2, pdfH * codeTopPct, { align: 'center' });
+    pdf.text(codigo, pdfW / 2, pdfH * codeTopPct, { align: 'center' });
 
     // data
-    pdf.setFontSize(isEmpresa ? 9 : 10);
-    pdf.text(validadeStr, pdfW / 2, pdfH * dateTopPct, { align: 'center' });
+    if (isEmpresa) {
+      pdf.setFontSize(7);
+      pdf.text('VALIDADE:', pdfW / 2, pdfH * EMPRESA_DATE_LABEL_Y, { align: 'center' });
+      pdf.setFontSize(9);
+      pdf.text(validadeStr, pdfW / 2, pdfH * EMPRESA_DATE_VALUE_Y, { align: 'center' });
+    } else {
+      pdf.setFontSize(10);
+      pdf.text(validadeStr, pdfW / 2, pdfH * dateTopPct, { align: 'center' });
+    }
 
     // verso (apenas Empresa)
     if (isEmpresa) {
@@ -103,11 +111,25 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
 
         {imageLoaded && (
           <>
-            {/* data de validade */}
+            {/* data de validade — shape rosa (Empresa: 2 linhas) */}
             <div
-              className="absolute left-0 right-0 flex items-center justify-center"
-              style={{ top: `${dateTopPct * 100}%`, height: '5%' }}
+              className="absolute left-0 right-0 flex flex-col items-center justify-center"
+              style={{ top: `${dateTopPct * 100}%`, height: isEmpresa ? '7%' : '5%' }}
             >
+              {isEmpresa && (
+                <span
+                  className="font-bold tracking-wide"
+                  style={{
+                    fontFamily: "'Arial', 'Helvetica Neue', sans-serif",
+                    fontSize: 'clamp(7px, 2.5vw, 13px)',
+                    color: '#ffffff',
+                    textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  VALIDADE:
+                </span>
+              )}
               <span
                 className="font-bold tracking-wide"
                 style={{
@@ -165,9 +187,9 @@ export async function generateBatchPDF(
   solicitante: string,
   isEmpresa = false,
 ): Promise<void> {
-  const frentePath = isEmpresa ? EMPRESA_FRENTE    : CORTESIAS_IMAGE;
-  const codeYPct   = isEmpresa ? EMPRESA_CODE_Y    : CORTESIAS_CODE_Y;
-  const dateYPct   = isEmpresa ? EMPRESA_DATE_Y    : CORTESIAS_DATE_Y;
+  const frentePath = isEmpresa ? EMPRESA_FRENTE  : CORTESIAS_IMAGE;
+  const codeYPct   = isEmpresa ? EMPRESA_CODE_Y  : CORTESIAS_CODE_Y;
+  const dateYPct   = isEmpresa ? EMPRESA_DATE_LABEL_Y : CORTESIAS_DATE_Y;
   const validadeStr = formatDate(data_validade);
 
   const frente = await loadImage(frentePath);
@@ -197,9 +219,11 @@ export async function generateBatchPDF(
       pdf.setTextColor(255, 255, 255);
 
       pdf.setFontSize(11);
-      pdf.text(codigo,      x + ticketW / 2, y + ticketH * codeYPct, { align: 'center' });
+      pdf.text(codigo, x + ticketW / 2, y + ticketH * codeYPct, { align: 'center' });
+      pdf.setFontSize(7);
+      pdf.text('VALIDADE:', x + ticketW / 2, y + ticketH * EMPRESA_DATE_LABEL_Y, { align: 'center' });
       pdf.setFontSize(9);
-      pdf.text(validadeStr, x + ticketW / 2, y + ticketH * dateYPct, { align: 'center' });
+      pdf.text(validadeStr, x + ticketW / 2, y + ticketH * EMPRESA_DATE_VALUE_Y, { align: 'center' });
 
       // página do verso
       pdf.addPage();
