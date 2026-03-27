@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useAppTheme } from '../hooks/useAppTheme';
 import { X, Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Calendar } from 'lucide-react';
 
 interface ImportCodesModalProps {
@@ -67,8 +67,16 @@ function parseDate(raw: string): string | null {
 export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
   const { user } = useAuth();
   const { db, tables } = useApp();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { isDark, isEmpresa, primaryBtn } = useAppTheme();
+
+  const primary   = isEmpresa ? '#f59e0b' : '#a700ff';
+  const secondary = isEmpresa ? '#0ea5e9' : '#ea0cac';
+  const modalBg   = isDark ? (isEmpresa ? 'bg-[#0a1628] border-[#f59e0b]/30' : 'bg-[#1a0a24] border-[#a700ff]/30') : 'bg-white border-gray-200';
+  const headerBorder = isDark ? (isEmpresa ? 'border-[#f59e0b]/20' : 'border-[#a700ff]/20') : 'border-gray-100';
+  const cardBg    = isDark ? (isEmpresa ? 'bg-[#0f2035] border-[#f59e0b]/20' : 'bg-[#311b3c] border-[#a700ff]/20') : 'bg-gray-50 border-gray-200';
+  const inputBg   = isDark ? (isEmpresa ? 'bg-[#0f2035] border-[#f59e0b]/30' : 'bg-[#330054] border-[#a700ff]/30') : 'bg-white border-gray-300';
+  const hintBg    = isDark ? (isEmpresa ? 'bg-[#0f2035]/70 border-[#f59e0b]/20 text-gray-300' : 'bg-[#330054]/50 border-[#a700ff]/20 text-gray-300') : 'bg-blue-50 border-blue-200 text-blue-800';
+  const closeBtnHover = isDark ? (isEmpresa ? 'hover:bg-[#0f2035]' : 'hover:bg-[#330054]') : 'hover:bg-gray-100';
 
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -261,15 +269,11 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div
-        className={`relative w-full max-w-2xl rounded-2xl shadow-2xl border ${
-          isDark ? 'bg-[#1a0a24] border-[#a700ff]/30' : 'bg-white border-gray-200'
-        }`}
-      >
-        <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-[#a700ff]/20' : 'border-gray-100'}`}>
+      <div className={`relative w-full max-w-2xl rounded-2xl shadow-2xl border ${modalBg}`}>
+        <div className={`flex items-center justify-between p-6 border-b ${headerBorder}`}>
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl ${isDark ? 'bg-[#ea0cac]/20' : 'bg-[#ea0cac]/10'}`}>
-              <Upload className="text-[#ea0cac]" size={22} />
+            <div className="p-2.5 rounded-xl" style={{ backgroundColor: `${secondary}20` }}>
+              <Upload size={22} style={{ color: secondary }} />
             </div>
             <div>
               <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Importar Vouchers</h2>
@@ -278,15 +282,15 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
           </div>
           <button
             onClick={onClose}
-            className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-[#330054] text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+            className={`p-2 rounded-lg transition-colors ${closeBtnHover} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
           >
             <X size={20} />
           </button>
         </div>
 
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          <div className={`rounded-xl p-4 border flex items-center gap-4 ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
-            <Database className="text-[#a700ff]" size={20} />
+          <div className={`rounded-xl p-4 border flex items-center gap-4 ${cardBg}`}>
+            <Database size={20} style={{ color: primary }} />
             {loadingStats ? (
               <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Carregando estatisticas...</span>
             ) : stats ? (
@@ -315,7 +319,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
 
           {!result && (
             <>
-              <div className={`rounded-xl p-3 border text-sm ${isDark ? 'bg-[#330054]/50 border-[#a700ff]/20 text-gray-300' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+              <div className={`rounded-xl p-3 border text-sm ${hintBg}`}>
                 <p className="font-semibold mb-1">Formato esperado da planilha:</p>
                 <p>Coluna A: <strong>Codigo do Voucher</strong> | Coluna B: <strong>Data de Validade</strong></p>
                 <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-blue-600'}`}>A linha 1 (cabecalho) sera ignorada. Datas aceitas: DD/MM/AAAA ou AAAA-MM-DD</p>
@@ -326,13 +330,11 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                  dragOver
-                    ? isDark ? 'border-[#ea0cac] bg-[#ea0cac]/10' : 'border-[#ea0cac] bg-[#ea0cac]/5'
-                    : file
-                      ? isDark ? 'border-[#a700ff] bg-[#a700ff]/10' : 'border-[#a700ff] bg-[#a700ff]/5'
-                      : isDark ? 'border-[#a700ff]/30 hover:border-[#a700ff]/60 hover:bg-[#a700ff]/5' : 'border-gray-300 hover:border-[#a700ff] hover:bg-[#a700ff]/5'
-                }`}
+                className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all"
+                style={{
+                  borderColor: dragOver ? secondary : file ? primary : `${primary}50`,
+                  backgroundColor: dragOver ? `${secondary}10` : file ? `${primary}10` : undefined,
+                }}
               >
                 <input
                   ref={fileInputRef}
@@ -343,7 +345,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                 />
                 {file ? (
                   <div className="flex flex-col items-center gap-2">
-                    <FileText className="text-[#a700ff]" size={36} />
+                    <FileText size={36} style={{ color: primary }} />
                     <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{file.name}</p>
                     <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {preview.length} vouchers detectados
@@ -379,7 +381,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
               )}
 
               {preview.length > 0 && (
-                <div className={`rounded-xl border p-4 ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
+                <div className={`rounded-xl border p-4 ${cardBg}`}>
                   <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     Pre-visualizacao ({preview.length} vouchers)
                   </p>
@@ -387,11 +389,9 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                     {preview.slice(0, 40).map((row, i) => (
                       <div
                         key={i}
-                        className={`font-mono text-xs px-2 py-1 rounded border flex items-center gap-1.5 ${
-                          isDark ? 'bg-[#330054] border-[#a700ff]/30' : 'bg-white border-gray-300'
-                        }`}
+                        className={`font-mono text-xs px-2 py-1 rounded border flex items-center gap-1.5 ${inputBg}`}
                       >
-                        <span className={isDark ? 'text-[#ea0cac]' : 'text-[#a700ff]'}>{row.code}</span>
+                        <span style={{ color: isDark ? secondary : primary }}>{row.code}</span>
                         <span className={isDark ? 'text-gray-600' : 'text-gray-300'}>|</span>
                         <span className={`flex items-center gap-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                           <Calendar size={10} />
@@ -419,7 +419,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                 <button
                   onClick={handleImport}
                   disabled={!preview.length || loading}
-                  className="flex-1 bg-gradient-to-r from-[#a700ff] to-[#ea0cac] text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:from-[#8a00d4] hover:to-[#c00a8f] transition-all"
+                  className={`flex-1 ${primaryBtn} text-white py-3 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all`}
                 >
                   {loading ? (
                     <>
@@ -437,7 +437,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
                   <button
                     onClick={reset}
                     disabled={loading}
-                    className={`px-5 py-3 rounded-xl font-semibold transition-colors ${isDark ? 'bg-[#330054] text-gray-300 hover:bg-[#a700ff]/20' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    className={`px-5 py-3 rounded-xl font-semibold transition-colors ${isDark ? `${inputBg} text-gray-300 hover:opacity-80` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   >
                     Limpar
                   </button>
@@ -448,7 +448,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
 
           {result && (
             <div className="space-y-4">
-              <div className={`rounded-xl p-6 border text-center ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
+              <div className={`rounded-xl p-6 border text-center ${cardBg}`}>
                 <div className={`inline-flex items-center justify-center w-14 h-14 rounded-full mb-4 ${result.errors === 0 ? isDark ? 'bg-green-900/50' : 'bg-green-100' : isDark ? 'bg-yellow-900/50' : 'bg-yellow-100'}`}>
                   <CheckCircle className={result.errors === 0 ? isDark ? 'text-green-400' : 'text-green-600' : isDark ? 'text-yellow-400' : 'text-yellow-600'} size={32} />
                 </div>
@@ -477,7 +477,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
               )}
 
               {stats && (
-                <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-gray-50 border-gray-200'}`}>
+                <div className={`rounded-xl p-4 border ${cardBg}`}>
                   <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Pool atualizado</p>
                   <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     Agora ha <span className={`font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>{stats.available.toLocaleString()}</span> vouchers disponiveis para uso
@@ -491,13 +491,13 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
               <div className="flex gap-3">
                 <button
                   onClick={reset}
-                  className={`flex-1 py-3 rounded-xl font-semibold transition-colors ${isDark ? 'bg-[#330054] text-white hover:bg-[#a700ff]/30' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
+                  className={`flex-1 py-3 rounded-xl font-semibold transition-colors ${isDark ? `${inputBg} text-white hover:opacity-80` : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
                 >
                   Importar Mais
                 </button>
                 <button
                   onClick={onClose}
-                  className="flex-1 bg-gradient-to-r from-[#a700ff] to-[#ea0cac] text-white py-3 rounded-xl font-semibold hover:from-[#8a00d4] hover:to-[#c00a8f] transition-all"
+                  className={`flex-1 ${primaryBtn} text-white py-3 rounded-xl font-semibold transition-all`}
                 >
                   Fechar
                 </button>

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import jsPDF from 'jspdf';
 import { Download } from 'lucide-react';
+import { useApp } from '../contexts/AppContext';
 
 interface TicketArtProps {
   codigo: string;
@@ -8,113 +9,134 @@ interface TicketArtProps {
   showDownload?: boolean;
 }
 
-const VOUCHER_IMAGE_PATH = '/MOLDE_VOUCHER_CINEX_1.png';
+// ── Cortesias ──────────────────────────────────────────────────────────────
+const CORTESIAS_IMAGE      = '/MOLDE_VOUCHER_CINEX_1.png';
+const CORTESIAS_CODE_Y     = 0.515;   // % do topo onde cai o código
+const CORTESIAS_DATE_Y     = 0.712;   // % do topo onde cai a validade
 
+// ── Empresa ────────────────────────────────────────────────────────────────
+const EMPRESA_FRENTE       = '/EMPRESA_INGRESSO_FRENTE_SEMTEXTO.png';
+const EMPRESA_VERSO        = '/EMPRESA_INGRESSO_VERSO.png';
+const EMPRESA_CODE_Y       = 0.740;   // % do topo — campo CINEX0001
+const EMPRESA_DATE_Y       = 0.588;   // % do topo — campo 31.12.2026
+
+function formatDate(data_validade?: string | null) {
+  if (!data_validade) return '';
+  return new Date(data_validade + 'T12:00:00').toLocaleDateString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// ── Componente de preview ──────────────────────────────────────────────────
 export function TicketArt({ codigo, data_validade, showDownload = true }: TicketArtProps) {
+  const { appMode } = useApp();
+  const isEmpresa = appMode === 'empresa';
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const validadeFormatted = data_validade
-    ? new Date(data_validade + 'T12:00:00').toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      })
-    : '';
+  const imagePath     = isEmpresa ? EMPRESA_FRENTE    : CORTESIAS_IMAGE;
+  const codeTopPct    = isEmpresa ? EMPRESA_CODE_Y    : CORTESIAS_CODE_Y;
+  const dateTopPct    = isEmpresa ? EMPRESA_DATE_Y    : CORTESIAS_DATE_Y;
+  const validadeStr   = formatDate(data_validade);
 
   useEffect(() => {
+    setImageLoaded(false);
     const img = new Image();
-    img.onload = () => setImageLoaded(true);
-    img.src = VOUCHER_IMAGE_PATH;
-  }, []);
+    img.onload  = () => setImageLoaded(true);
+    img.onerror = () => setImageLoaded(false);
+    img.src = imagePath;
+  }, [imagePath]);
 
+  // ── Download PDF ─────────────────────────────────────────────────────────
   const downloadPDF = async () => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
+    const frente = await loadImage(imagePath);
+    const pdfW   = 90;
+    const pdfH   = (frente.height / frente.width) * pdfW;
 
-    img.onload = () => {
-      const imgWidth = img.width;
-      const imgHeight = img.height;
-      const pdfWidth = 90;
-      const pdfHeight = (imgHeight / imgWidth) * pdfWidth;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfW, pdfH] });
+    pdf.addImage(frente, 'PNG', 0, 0, pdfW, pdfH);
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: [pdfWidth, pdfHeight]
-      });
+    pdf.setFont('Helvetica', 'bold');
+    pdf.setTextColor(255, 255, 255);
 
-      pdf.addImage(img, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    // código
+    pdf.setFontSize(isEmpresa ? 11 : 12);
+    pdf.text(codigo,      pdfW / 2, pdfH * codeTopPct, { align: 'center' });
 
-      pdf.addFont('Helvetica', 'Helvetica', 'bold');
-      pdf.setFont('Helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
+    // data
+    pdf.setFontSize(isEmpresa ? 9 : 10);
+    pdf.text(validadeStr, pdfW / 2, pdfH * dateTopPct, { align: 'center' });
 
-      const codeY = pdfHeight * 0.54;
-      pdf.setFontSize(12);
-      pdf.text(codigo, pdfWidth / 2, codeY, { align: 'center' });
+    // verso (apenas Empresa)
+    if (isEmpresa) {
+      const verso = await loadImage(EMPRESA_VERSO);
+      const versoH = (verso.height / verso.width) * pdfW;
+      pdf.addPage([pdfW, versoH], 'portrait');
+      pdf.addImage(verso, 'PNG', 0, 0, pdfW, versoH);
+    }
 
-      const dateY = pdfHeight * 0.73;
-      pdf.setFontSize(10);
-      pdf.text(validadeFormatted, pdfWidth / 2, dateY, { align: 'center' });
-
-      pdf.save(`cortesia-${codigo}.pdf`);
-    };
-
-    img.src = VOUCHER_IMAGE_PATH;
+    const prefix = isEmpresa ? 'ingresso' : 'cortesia';
+    pdf.save(`${prefix}-${codigo}.pdf`);
   };
 
   return (
     <div className="relative w-full" ref={containerRef}>
       <div
         className="relative w-full mx-auto overflow-hidden"
-        style={{ aspectRatio: '828/1568' }}
+        style={{ aspectRatio: '591/1063' }}
       >
         <img
-          src={VOUCHER_IMAGE_PATH}
-          alt="Voucher Background"
+          src={imagePath}
+          alt={isEmpresa ? 'Ingresso Empresa' : 'Voucher Cortesias'}
           className="absolute inset-0 w-full h-full object-cover"
         />
 
         {imageLoaded && (
           <>
+            {/* data de validade */}
             <div
               className="absolute left-0 right-0 flex items-center justify-center"
-              style={{
-                top: '51.5%',
-                height: '5%'
-              }}
+              style={{ top: `${dateTopPct * 100}%`, height: '5%' }}
             >
               <span
                 className="font-bold tracking-wide"
                 style={{
                   fontFamily: "'Arial', 'Helvetica Neue', sans-serif",
-                  fontSize: 'clamp(12px, 4vw, 24px)',
+                  fontSize: 'clamp(9px, 3.5vw, 18px)',
                   color: '#ffffff',
-                  textShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  textShadow: '0 1px 3px rgba(0,0,0,0.5)',
                 }}
               >
-                {codigo}
+                {validadeStr}
               </span>
             </div>
 
+            {/* código do voucher */}
             <div
               className="absolute left-0 right-0 flex items-center justify-center"
-              style={{
-                top: '71.2%',
-                height: '4%'
-              }}
+              style={{ top: `${codeTopPct * 100}%`, height: '6%' }}
             >
               <span
-                className="font-bold tracking-wide"
+                className="font-bold tracking-widest"
                 style={{
                   fontFamily: "'Arial', 'Helvetica Neue', sans-serif",
-                  fontSize: 'clamp(10px, 3.5vw, 20px)',
+                  fontSize: isEmpresa ? 'clamp(11px, 4vw, 22px)' : 'clamp(12px, 4vw, 24px)',
                   color: '#ffffff',
-                  textShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                  letterSpacing: isEmpresa ? '0.08em' : undefined,
                 }}
               >
-                {validadeFormatted}
+                {codigo}
               </span>
             </div>
           </>
@@ -124,7 +146,9 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
       {showDownload && (
         <button
           onClick={downloadPDF}
-          className="absolute bottom-2 right-2 bg-white/90 hover:bg-white text-purple-700 p-2 rounded-lg shadow-lg transition-all hover:scale-105"
+          className={`absolute bottom-2 right-2 bg-white/90 hover:bg-white p-2 rounded-lg shadow-lg transition-all hover:scale-105 ${
+            isEmpresa ? 'text-amber-600' : 'text-purple-700'
+          }`}
           title="Baixar PDF"
         >
           <Download size={16} />
@@ -134,80 +158,93 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
   );
 }
 
+// ── Geração em lote ────────────────────────────────────────────────────────
 export async function generateBatchPDF(
   codigos: string[],
   data_validade: string | null,
-  solicitante: string
+  solicitante: string,
+  isEmpresa = false,
 ): Promise<void> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
+  const frentePath = isEmpresa ? EMPRESA_FRENTE    : CORTESIAS_IMAGE;
+  const codeYPct   = isEmpresa ? EMPRESA_CODE_Y    : CORTESIAS_CODE_Y;
+  const dateYPct   = isEmpresa ? EMPRESA_DATE_Y    : CORTESIAS_DATE_Y;
+  const validadeStr = formatDate(data_validade);
 
-    img.onload = () => {
-      const imgWidth = img.width;
-      const imgHeight = img.height;
+  const frente = await loadImage(frentePath);
+  const verso  = isEmpresa ? await loadImage(EMPRESA_VERSO) : null;
 
-      const ticketWidth = 90;
-      const ticketHeight = (imgHeight / imgWidth) * ticketWidth;
-      const margin = 5;
-      const pageWidth = 210;
-      const pageHeight = 297;
+  const ticketW  = 90;
+  const ticketH  = (frente.height / frente.width) * ticketW;
+  const margin   = 5;
+  const pageW    = 210;
+  const pageH    = 297;
 
-      const cols = 2;
-      const rows = Math.floor((pageHeight - 2 * margin) / (ticketHeight + margin));
-      const ticketsPerPage = cols * rows;
+  if (isEmpresa) {
+    // Empresa: cada ingresso ocupa 2 páginas (frente + verso)
+    const versoH = verso ? (verso.height / verso.width) * ticketW : ticketH;
 
-      const validadeFormatted = data_validade
-        ? new Date(data_validade + 'T12:00:00').toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-          })
-        : '';
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
+    codigos.forEach((codigo, index) => {
+      if (index > 0) pdf.addPage();
 
-      const drawTicket = (x: number, y: number, codigo: string) => {
-        pdf.addImage(img, 'PNG', x, y, ticketWidth, ticketHeight);
+      // página da frente — centralizado na A4
+      const x = (pageW - ticketW) / 2;
+      const y = (pageH - ticketH) / 2;
 
-        pdf.setFont('Helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
+      pdf.addImage(frente, 'PNG', x, y, ticketW, ticketH);
+      pdf.setFont('Helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
 
-        const codeY = y + ticketHeight * 0.54;
-        pdf.setFontSize(10);
-        pdf.text(codigo, x + ticketWidth / 2, codeY, { align: 'center' });
+      pdf.setFontSize(11);
+      pdf.text(codigo,      x + ticketW / 2, y + ticketH * codeYPct, { align: 'center' });
+      pdf.setFontSize(9);
+      pdf.text(validadeStr, x + ticketW / 2, y + ticketH * dateYPct, { align: 'center' });
 
-        const dateY = y + ticketHeight * 0.73;
-        pdf.setFontSize(8);
-        pdf.text(validadeFormatted, x + ticketWidth / 2, dateY, { align: 'center' });
-      };
+      // página do verso
+      pdf.addPage();
+      if (verso) {
+        const vx = (pageW - ticketW) / 2;
+        const vy = (pageH - versoH) / 2;
+        pdf.addImage(verso, 'PNG', vx, vy, ticketW, versoH);
+      }
+    });
 
-      codigos.forEach((codigo, index) => {
-        if (index > 0 && index % ticketsPerPage === 0) {
-          pdf.addPage();
-        }
+    const nome = solicitante.replace(/\s+/g, '-').toLowerCase();
+    pdf.save(`ingressos-${nome}-${codigos.length}un.pdf`);
 
-        const pageIndex = index % ticketsPerPage;
-        const col = pageIndex % cols;
-        const row = Math.floor(pageIndex / cols);
+  } else {
+    // Cortesias: layout em grade 2 colunas na A4
+    const cols = 2;
+    const rows = Math.floor((pageH - 2 * margin) / (ticketH + margin));
+    const ticketsPerPage = cols * rows;
 
-        const totalWidth = cols * ticketWidth + (cols - 1) * margin;
-        const startX = (pageWidth - totalWidth) / 2;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-        const x = startX + col * (ticketWidth + margin);
-        const y = margin + row * (ticketHeight + margin);
+    const drawTicket = (x: number, y: number, codigo: string) => {
+      pdf.addImage(frente, 'PNG', x, y, ticketW, ticketH);
+      pdf.setFont('Helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
 
-        drawTicket(x, y, codigo);
-      });
-
-      pdf.save(`cortesias-${solicitante.replace(/\s+/g, '-').toLowerCase()}-${codigos.length}un.pdf`);
-      resolve();
+      pdf.setFontSize(10);
+      pdf.text(codigo,      x + ticketW / 2, y + ticketH * codeYPct, { align: 'center' });
+      pdf.setFontSize(8);
+      pdf.text(validadeStr, x + ticketW / 2, y + ticketH * dateYPct, { align: 'center' });
     };
 
-    img.src = VOUCHER_IMAGE_PATH;
-  });
+    codigos.forEach((codigo, index) => {
+      if (index > 0 && index % ticketsPerPage === 0) pdf.addPage();
+
+      const pageIndex  = index % ticketsPerPage;
+      const col        = pageIndex % cols;
+      const row        = Math.floor(pageIndex / cols);
+      const totalWidth = cols * ticketW + (cols - 1) * margin;
+      const startX     = (pageW - totalWidth) / 2;
+
+      drawTicket(startX + col * (ticketW + margin), margin + row * (ticketH + margin), codigo);
+    });
+
+    const nome = solicitante.replace(/\s+/g, '-').toLowerCase();
+    pdf.save(`cortesias-${nome}-${codigos.length}un.pdf`);
+  }
 }

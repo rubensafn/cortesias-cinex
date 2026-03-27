@@ -76,7 +76,7 @@ export default function TicketsViewer() {
 
   const handleDownloadAll = async (record: CortesiaRecord) => {
     setDownloadingBatch(record.id);
-    try { await generateBatchPDF(record.codigos, record.data_validade, record.solicitante); }
+    try { await generateBatchPDF(record.codigos, record.data_validade, record.solicitante, isEmpresa); }
     finally { setDownloadingBatch(null); }
   };
 
