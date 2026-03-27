@@ -1,13 +1,12 @@
 import { useAuth } from './contexts/AuthContext';
+import { useApp } from './contexts/AppContext';
 import { useTheme } from './contexts/ThemeContext';
+import AppSelector from './components/AppSelector';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import { PendingApproval } from './components/PendingApproval';
 
-const DEV_SUPABASE_URL = 'gdtfwmqbvsqtxtccrydv';
-const isDevEnv =
-  import.meta.env.VITE_SUPABASE_URL?.includes(DEV_SUPABASE_URL) &&
-  import.meta.env.MODE !== 'production';
+const isDevEnv = import.meta.env.DEV;
 
 function DevBanner() {
   if (!isDevEnv) return null;
@@ -20,14 +19,22 @@ function DevBanner() {
 }
 
 function App() {
+  const { appMode } = useApp();
   const { user, loading, isApproved, userRole } = useAuth();
   const { theme } = useTheme();
-
   const isDark = theme === 'dark';
 
+  // Sem app selecionado → tela de seleção
+  if (!appMode) {
+    return <><AppSelector /><DevBanner /></>;
+  }
+
   if (loading) {
+    const bgClass = isDark
+      ? (appMode === 'empresa' ? 'bg-[#080f1a]' : 'bg-gradient-to-br from-[#311b3c] via-[#330054] to-black')
+      : 'bg-gradient-to-br from-gray-50 via-gray-100 to-white';
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-[#311b3c] via-[#330054] to-black' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-white'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${bgClass}`}>
         <p className={isDark ? 'text-gray-500' : 'text-gray-400'}>Carregando...</p>
         <DevBanner />
       </div>
@@ -50,8 +57,12 @@ function App() {
     return <><Dashboard /><DevBanner /></>;
   }
 
+  const bgClass = isDark
+    ? (appMode === 'empresa' ? 'bg-[#080f1a]' : 'bg-gradient-to-br from-[#311b3c] via-[#330054] to-black')
+    : 'bg-gradient-to-br from-gray-50 via-gray-100 to-white';
+
   return (
-    <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-[#311b3c] via-[#330054] to-black' : 'bg-gradient-to-br from-gray-50 via-gray-100 to-white'}`}>
+    <div className={`min-h-screen flex items-center justify-center ${bgClass}`}>
       <p className={isDark ? 'text-gray-500' : 'text-gray-400'}>Carregando perfil...</p>
       <DevBanner />
     </div>

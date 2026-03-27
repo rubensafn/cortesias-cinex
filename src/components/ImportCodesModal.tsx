@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { supabase } from '../lib/supabase';
+import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { X, Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Calendar } from 'lucide-react';
@@ -66,6 +66,7 @@ function parseDate(raw: string): string | null {
 
 export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
   const { user } = useAuth();
+  const { db, tables } = useApp();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -82,8 +83,8 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
 
   const loadStats = useCallback(async () => {
     setLoadingStats(true);
-    const { data, error: statsError } = await supabase
-      .from('imported_codes')
+    const { data, error: statsError } = await db
+      .from(tables.importedCodes)
       .select('used, expiry_date');
 
     if (!statsError && data) {
@@ -94,7 +95,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
       setStats({ available, used, expired, total: data.length });
     }
     setLoadingStats(false);
-  }, []);
+  }, [db, tables.importedCodes]);
 
   useState(() => {
     loadStats();
@@ -205,16 +206,16 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
 
-      const { error: insertError, data } = await supabase
-        .from('imported_codes')
+      const { error: insertError, data } = await db
+        .from(tables.importedCodes)
         .upsert(batch, { onConflict: 'code', ignoreDuplicates: true })
         .select('id');
 
       if (insertError) {
         lastError = insertError.message;
         for (const row of batch) {
-          const { error: singleErr } = await supabase
-            .from('imported_codes')
+          const { error: singleErr } = await db
+            .from(tables.importedCodes)
             .upsert(row, { onConflict: 'code', ignoreDuplicates: true });
 
           if (singleErr) {

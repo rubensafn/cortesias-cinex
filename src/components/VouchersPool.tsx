@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
-import { useTheme } from '../contexts/ThemeContext';
+import { useApp } from '../contexts/AppContext';
+import { useAppTheme } from '../hooks/useAppTheme';
 import {
   Package,
   CheckCircle2,
@@ -29,8 +29,29 @@ type SortDir = 'asc' | 'desc';
 const PAGE_SIZE = 25;
 
 export default function VouchersPool() {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { db, tables } = useApp();
+  const { isDark, isEmpresa, cardBg, activeNavBtn } = useAppTheme();
+
+  const primary = isEmpresa ? '#f59e0b' : '#a700ff';
+  const secondary = isEmpresa ? '#0ea5e9' : '#ea0cac';
+  const cardAccent = isEmpresa ? 'border-[#f59e0b]/20' : 'border-[#a700ff]/20';
+  const cardBase = isEmpresa
+    ? (isDark ? 'bg-[#0a1628]' : 'bg-white')
+    : (isDark ? 'bg-[#311b3c]' : 'bg-white');
+  const searchRing = isEmpresa ? 'focus:ring-[#f59e0b]' : 'focus:ring-[#a700ff]';
+  const searchBg = isEmpresa
+    ? (isDark ? 'bg-[#0f2035] border-[#f59e0b]/30 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400')
+    : (isDark ? 'bg-[#330054] border-[#a700ff]/30 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400');
+  const rowHover = isDark
+    ? (isEmpresa ? 'hover:bg-[#0f2035]/80' : 'hover:bg-[#330054]/50')
+    : 'hover:bg-gray-50';
+  const rowBorder = isDark
+    ? (isEmpresa ? 'border-[#f59e0b]/10' : 'border-[#a700ff]/10')
+    : 'border-gray-50';
+  const tableHeaderBorder = isDark
+    ? (isEmpresa ? 'border-[#f59e0b]/10' : 'border-[#a700ff]/10')
+    : 'border-gray-100';
+  const paginationBorder = tableHeaderBorder;
 
   const [tab, setTab] = useState<Tab>('disponiveis');
   const [vouchers, setVouchers] = useState<ImportedCode[]>([]);
@@ -46,9 +67,9 @@ export default function VouchersPool() {
     const today = new Date().toISOString().split('T')[0];
 
     const [availRes, usedRes, expiredRes] = await Promise.all([
-      supabase.from('imported_codes').select('id', { count: 'exact', head: true }).eq('used', false).gte('expiry_date', today),
-      supabase.from('imported_codes').select('id', { count: 'exact', head: true }).eq('used', true),
-      supabase.from('imported_codes').select('id', { count: 'exact', head: true }).eq('used', false).lt('expiry_date', today),
+      db.from(tables.importedCodes).select('id', { count: 'exact', head: true }).eq('used', false).gte('expiry_date', today),
+      db.from(tables.importedCodes).select('id', { count: 'exact', head: true }).eq('used', true),
+      db.from(tables.importedCodes).select('id', { count: 'exact', head: true }).eq('used', false).lt('expiry_date', today),
     ]);
 
     setCounts({
@@ -56,14 +77,14 @@ export default function VouchersPool() {
       usados: usedRes.count ?? 0,
       vencidos: expiredRes.count ?? 0,
     });
-  }, []);
+  }, [db, tables.importedCodes]);
 
   const fetchVouchers = useCallback(async () => {
     setLoading(true);
     const today = new Date().toISOString().split('T')[0];
 
-    let query = supabase
-      .from('imported_codes')
+    let query = db
+      .from(tables.importedCodes)
       .select('id, code, expiry_date, used, used_at, created_at', { count: 'exact' });
 
     if (tab === 'disponiveis') {
@@ -88,7 +109,7 @@ export default function VouchersPool() {
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [tab, search, page, sortField, sortDir]);
+  }, [db, tables.importedCodes, tab, search, page, sortField, sortDir]);
 
   useEffect(() => {
     fetchCounts();
@@ -140,9 +161,10 @@ export default function VouchersPool() {
       onClick={() => toggleSort(field)}
       className={`flex items-center gap-1 text-xs font-bold uppercase tracking-wider transition-colors ${
         sortField === field
-          ? isDark ? 'text-[#ea0cac]' : 'text-[#a700ff]'
+          ? isDark ? `text-[${secondary}]` : `text-[${primary}]`
           : isDark ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
       }`}
+      style={{ color: sortField === field ? (isDark ? secondary : primary) : undefined }}
     >
       {label}
       <ArrowUpDown size={12} className={sortField === field ? 'opacity-100' : 'opacity-40'} />
@@ -152,21 +174,21 @@ export default function VouchersPool() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-3">
-        <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-white border-gray-100'}`}>
+        <div className={`rounded-xl p-4 border ${cardBase} ${cardAccent}`}>
           <div className={`inline-flex p-2 rounded-lg mb-2 ${isDark ? 'bg-green-900/40' : 'bg-green-50'}`}>
             <Package className={isDark ? 'text-green-400' : 'text-green-600'} size={18} />
           </div>
           <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{counts.disponiveis.toLocaleString()}</p>
           <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Disponiveis</p>
         </div>
-        <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-white border-gray-100'}`}>
+        <div className={`rounded-xl p-4 border ${cardBase} ${cardAccent}`}>
           <div className={`inline-flex p-2 rounded-lg mb-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <CheckCircle2 className={isDark ? 'text-gray-400' : 'text-gray-500'} size={18} />
           </div>
           <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{counts.usados.toLocaleString()}</p>
           <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Usados</p>
         </div>
-        <div className={`rounded-xl p-4 border ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-white border-gray-100'}`}>
+        <div className={`rounded-xl p-4 border ${cardBase} ${cardAccent}`}>
           <div className={`inline-flex p-2 rounded-lg mb-2 ${isDark ? 'bg-orange-900/40' : 'bg-orange-50'}`}>
             <AlertTriangle className={isDark ? 'text-orange-400' : 'text-orange-500'} size={18} />
           </div>
@@ -185,11 +207,9 @@ export default function VouchersPool() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                tab === t.id
-                  ? 'bg-gradient-to-r from-[#a700ff] to-[#ea0cac] text-white'
-                  : isDark
-                    ? 'bg-[#311b3c] text-gray-400 border border-[#a700ff]/20 hover:bg-[#330054]'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                tab === t.id ? activeNavBtn : isDark
+                  ? `${cardBase} text-gray-400 border ${cardAccent} hover:opacity-80`
+                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}
             >
               {t.label}
@@ -205,19 +225,15 @@ export default function VouchersPool() {
             placeholder="Buscar codigo..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className={`w-full pl-9 pr-4 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#a700ff] transition-all ${
-              isDark
-                ? 'bg-[#330054] border-[#a700ff]/30 text-white placeholder-gray-500'
-                : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
-            }`}
+            className={`w-full pl-9 pr-4 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 ${searchRing} transition-all ${searchBg}`}
           />
         </div>
       </div>
 
-      <div className={`rounded-xl border overflow-hidden ${isDark ? 'bg-[#311b3c] border-[#a700ff]/20' : 'bg-white border-gray-100'}`}>
+      <div className={`rounded-xl border overflow-hidden ${cardBase} ${cardAccent}`}>
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className={`animate-spin ${isDark ? 'text-[#a700ff]' : 'text-[#a700ff]'}`} size={24} />
+            <Loader2 className="animate-spin" size={24} style={{ color: primary }} />
           </div>
         ) : vouchers.length === 0 ? (
           <div className="text-center py-16">
@@ -230,7 +246,7 @@ export default function VouchersPool() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className={`border-b ${isDark ? 'border-[#a700ff]/10' : 'border-gray-100'}`}>
+                  <tr className={`border-b ${tableHeaderBorder}`}>
                     <th className="text-left px-5 py-3">
                       <SortHeader field="code" label="Codigo" />
                     </th>
@@ -259,14 +275,10 @@ export default function VouchersPool() {
                     return (
                       <tr
                         key={v.id}
-                        className={`border-b last:border-b-0 transition-colors ${
-                          isDark
-                            ? 'border-[#a700ff]/10 hover:bg-[#330054]/50'
-                            : 'border-gray-50 hover:bg-gray-50'
-                        }`}
+                        className={`border-b last:border-b-0 transition-colors ${rowBorder} ${rowHover}`}
                       >
                         <td className="px-5 py-3">
-                          <span className={`font-mono text-sm font-bold ${isDark ? 'text-[#ea0cac]' : 'text-[#a700ff]'}`}>
+                          <span className="font-mono text-sm font-bold" style={{ color: isDark ? secondary : primary }}>
                             {v.code}
                           </span>
                         </td>
@@ -321,7 +333,7 @@ export default function VouchersPool() {
               </table>
             </div>
 
-            <div className={`flex items-center justify-between px-5 py-3 border-t ${isDark ? 'border-[#a700ff]/10' : 'border-gray-100'}`}>
+            <div className={`flex items-center justify-between px-5 py-3 border-t ${paginationBorder}`}>
               <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                 {totalCount.toLocaleString()} voucher{totalCount !== 1 ? 's' : ''} no total
               </p>
@@ -330,7 +342,7 @@ export default function VouchersPool() {
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
                   className={`p-1.5 rounded-lg transition-colors disabled:opacity-30 ${
-                    isDark ? 'hover:bg-[#330054] text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                    isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
                   }`}
                 >
                   <ChevronLeft size={16} />
@@ -342,7 +354,7 @@ export default function VouchersPool() {
                   onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
                   className={`p-1.5 rounded-lg transition-colors disabled:opacity-30 ${
-                    isDark ? 'hover:bg-[#330054] text-gray-400' : 'hover:bg-gray-100 text-gray-500'
+                    isDark ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-500'
                   }`}
                 >
                   <ChevronRight size={16} />

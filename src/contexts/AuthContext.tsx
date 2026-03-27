@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { useApp } from './AppContext';
 
 interface AuthContextType {
   user: User | null;
@@ -17,6 +17,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { db, tables } = useApp();
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -24,21 +26,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isApproved, setIsApproved] = useState(false);
   const [userRole, setUserRole] = useState<'master_admin' | 'master' | 'admin' | 'user' | null>(null);
 
+  // Quando o app muda (cortesias <-> empresa), reinicia o estado de auth
   useEffect(() => {
-    const savedSession = localStorage.getItem('auth_session');
+    setUser(null);
+    setIsAdmin(false);
+    setIsMaster(false);
+    setIsApproved(false);
+    setUserRole(null);
+    setLoading(true);
+
+    const savedSession = localStorage.getItem(tables.sessionKey);
     if (savedSession) {
       (async () => {
         try {
           const session = JSON.parse(savedSession);
 
-          const { data: freshData } = await supabase
+          const { data: freshData } = await db
             .from('user_accounts')
             .select('approved, role')
             .eq('id', session.user.id)
             .maybeSingle();
 
           if (!freshData) {
-            localStorage.removeItem('auth_session');
+            localStorage.removeItem(tables.sessionKey);
             setLoading(false);
             return;
           }
@@ -46,9 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const role = (freshData.role as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
           const approved = freshData.approved ?? false;
 
-          session.user.approved = freshData.approved;
-          session.user.role = freshData.role;
-          localStorage.setItem('auth_session', JSON.stringify(session));
+          session.user.approved = approved;
+          session.user.role = role;
+          localStorage.setItem(tables.sessionKey, JSON.stringify(session));
 
           const mockUser: User = {
             id: session.user.id,
@@ -65,28 +75,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
           setIsApproved(approved);
           setLoading(false);
-        } catch (e) {
-          localStorage.removeItem('auth_session');
+        } catch {
+          localStorage.removeItem(tables.sessionKey);
           setLoading(false);
         }
       })();
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [tables.sessionKey]);
 
   const signIn = async (username: string, password: string) => {
     try {
-      const { data: accountData, error: dbError } = await supabase
+      const { data: accountData, error: dbError } = await db
         .from('user_accounts')
         .select('id, username, role, password, approved')
         .eq('username', username)
         .maybeSingle();
 
-      if (dbError) {
-        return { error: new Error('Erro ao verificar usuário') };
-      }
-
+      if (dbError) return { error: new Error('Erro ao verificar usuário') };
       if (!accountData || accountData.password !== password) {
         return { error: new Error('Usuário ou senha incorretos') };
       }
@@ -103,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       };
 
-      localStorage.setItem('auth_session', JSON.stringify(session));
+      localStorage.setItem(tables.sessionKey, JSON.stringify(session));
 
       setUserRole(role);
       setIsMaster(role === 'master_admin' || role === 'master');
@@ -120,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } as User;
 
       setUser(mockUser);
-
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -129,35 +135,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (username: string, password: string) => {
     try {
-      if (username.length < 3) {
-        return { error: new Error('Usuario deve ter pelo menos 3 caracteres') };
-      }
-      if (password.length < 6) {
-        return { error: new Error('Senha deve ter pelo menos 6 caracteres') };
-      }
+      if (username.length < 3) return { error: new Error('Usuario deve ter pelo menos 3 caracteres') };
+      if (password.length < 6) return { error: new Error('Senha deve ter pelo menos 6 caracteres') };
 
-      const { data: existingUser } = await supabase
+      const { data: existingUser } = await db
         .from('user_accounts')
         .select('id')
         .eq('username', username)
         .maybeSingle();
 
-      if (existingUser) {
-        return { error: new Error('Usuario ja existe') };
-      }
+      if (existingUser) return { error: new Error('Usuario ja existe') };
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await db
         .from('user_accounts')
-        .insert({
-          username,
-          password,
-          role: 'user',
-          approved: false,
-        });
+        .insert({ username, password, role: 'user', approved: false });
 
-      if (insertError) {
-        return { error: new Error(insertError.message || 'Erro ao criar conta') };
-      }
+      if (insertError) return { error: new Error(insertError.message || 'Erro ao criar conta') };
 
       return { error: null };
     } catch (error) {
@@ -166,16 +159,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    try {
-      localStorage.removeItem('auth_session');
-      setUser(null);
-      setIsAdmin(false);
-      setIsMaster(false);
-      setIsApproved(false);
-      setUserRole(null);
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+    localStorage.removeItem(tables.sessionKey);
+    setUser(null);
+    setIsAdmin(false);
+    setIsMaster(false);
+    setIsApproved(false);
+    setUserRole(null);
   };
 
   return (
@@ -187,8 +176,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
