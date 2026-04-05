@@ -11,8 +11,8 @@ interface TicketArtProps {
 
 // ── Cortesias ──────────────────────────────────────────────────────────────
 const CORTESIAS_IMAGE      = '/MOLDE_VOUCHER_CINEX_1.png';
-const CORTESIAS_CODE_Y     = 0.542;   // % do topo onde cai o código
-const CORTESIAS_DATE_Y     = 0.730;   // % do topo onde cai a validade
+const CORTESIAS_CODE_Y     = 0.560;   // % do topo onde cai o código
+const CORTESIAS_DATE_Y     = 0.752;   // % do topo onde cai a validade
 
 // ── Empresa ────────────────────────────────────────────────────────────────
 const EMPRESA_FRENTE         = '/EMPRESA_INGRESSO_FRENTE_SEMTEXTO.png';
@@ -180,7 +180,7 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
   );
 }
 
-// ── Geração em lote ────────────────────────────────────────────────────────
+// ── Geração individual (download avulso) ───────────────────────────────────
 export async function generateSinglePDF(
   codigo: string,
   data_validade: string | null,
@@ -198,7 +198,6 @@ export async function generateSinglePDF(
   pdf.addImage(frente, 'PNG', 0, 0, pdfW, pdfH);
   pdf.setFont('Helvetica', 'bold');
   pdf.setTextColor(255, 255, 255);
-
   pdf.setFontSize(isEmpresa ? 14 : 20);
   pdf.text(codigo, pdfW / 2, pdfH * codeTopPct, { align: 'center' });
 
@@ -207,22 +206,20 @@ export async function generateSinglePDF(
     pdf.text('VALIDADE:', pdfW / 2, pdfH * EMPRESA_DATE_LABEL_Y, { align: 'center' });
     pdf.setFontSize(11);
     pdf.text(validadeStr, pdfW / 2, pdfH * EMPRESA_DATE_VALUE_Y, { align: 'center' });
-  } else {
-    pdf.setFontSize(13);
-    pdf.text(validadeStr, pdfW / 2, pdfH * CORTESIAS_DATE_Y, { align: 'center' });
-  }
-
-  if (isEmpresa) {
     const verso = await loadImage(EMPRESA_VERSO);
     const versoH = (verso.height / verso.width) * pdfW;
     pdf.addPage([pdfW, versoH], 'portrait');
     pdf.addImage(verso, 'PNG', 0, 0, pdfW, versoH);
+  } else {
+    pdf.setFontSize(13);
+    pdf.text(validadeStr, pdfW / 2, pdfH * CORTESIAS_DATE_Y, { align: 'center' });
   }
 
   const prefix = isEmpresa ? 'ingresso' : 'cortesia';
   pdf.save(`${prefix}-${codigo}.pdf`);
 }
 
+// ── Geração em lote ────────────────────────────────────────────────────────
 export async function generateBatchPDF(
   codigos: string[],
   data_validade: string | null,
