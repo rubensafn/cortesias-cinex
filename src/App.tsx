@@ -4,6 +4,7 @@ import { useTheme } from './contexts/ThemeContext';
 import AppSelector from './components/AppSelector';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
+import ForcePasswordReset from './components/ForcePasswordReset';
 import { PendingApproval } from './components/PendingApproval';
 
 const isDevEnv = import.meta.env.DEV;
@@ -20,7 +21,7 @@ function DevBanner() {
 
 function App() {
   const { appMode } = useApp();
-  const { user, loading, isApproved, userRole } = useAuth();
+  const { user, loading, isApproved, userRole, needsPasswordReset } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -43,6 +44,10 @@ function App() {
 
   if (!user) {
     return <><LoginPage /><DevBanner /></>;
+  }
+
+  if (needsPasswordReset) {
+    return <><ForcePasswordReset /><DevBanner /></>;
   }
 
   if (userRole === 'master_admin' || userRole === 'master' || userRole === 'admin') {

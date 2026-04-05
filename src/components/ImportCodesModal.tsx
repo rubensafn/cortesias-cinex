@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useDataRefresh } from '../contexts/DataRefreshContext';
 import { X, Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Calendar } from 'lucide-react';
 
 interface ImportCodesModalProps {
@@ -29,8 +30,12 @@ interface ParsedRow {
 }
 
 function parseDate(raw: string): string | null {
-  const trimmed = raw.trim().replace(/['"]/g, '');
+  let trimmed = raw.trim().replace(/['"]/g, '');
   if (!trimmed) return null;
+
+  // Formato período: "DD/MM/YYYY até DD/MM/YYYY" — pega a data final
+  const ateMatch = trimmed.match(/(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})\s*até\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})/i);
+  if (ateMatch) trimmed = ateMatch[2]; // usa a data final
 
   const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (isoMatch) {
@@ -68,6 +73,7 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
   const { user } = useAuth();
   const { db, tables } = useApp();
   const { isDark, isEmpresa, primaryBtn } = useAppTheme();
+  const { refresh } = useDataRefresh();
 
   const primary   = isEmpresa ? '#f59e0b' : '#a700ff';
   const secondary = isEmpresa ? '#0ea5e9' : '#ea0cac';
@@ -93,14 +99,15 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     setLoadingStats(true);
     const { data, error: statsError } = await db
       .from(tables.importedCodes)
-      .select('used, expiry_date');
+      .select('used, expiry_date, cancelled');
 
     if (!statsError && data) {
       const today = new Date().toISOString().split('T')[0];
-      const available = data.filter(r => !r.used && r.expiry_date >= today).length;
-      const used = data.filter(r => r.used).length;
-      const expired = data.filter(r => !r.used && r.expiry_date < today).length;
-      setStats({ available, used, expired, total: data.length });
+      const active = data.filter(r => !r.cancelled);
+      const available = active.filter(r => !r.used && r.expiry_date >= today).length;
+      const used = active.filter(r => r.used).length;
+      const expired = active.filter(r => !r.used && r.expiry_date < today).length;
+      setStats({ available, used, expired, total: active.length });
     }
     setLoadingStats(false);
   }, [db, tables.importedCodes]);
@@ -114,10 +121,31 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     const errors: string[] = [];
     const seenCodes = new Set<string>();
 
-    for (let i = 1; i < rawRows.length; i++) {
+    if (rawRows.length === 0) return { rows, errors };
+
+    // Normaliza cabeçalho para detecção
+    const headerRow = rawRows[0].map(h => h.toString().trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/['"]/g, ''));
+
+    // Fallback: col C (índice 2) = código, col E (índice 4) = validade
+    let codeColIdx = 2;
+    let dateColIdx = 4;
+
+    for (let i = 0; i < headerRow.length; i++) {
+      const h = headerRow[i];
+      // "Código de Barras", "Código", "Code", "Voucher", "Ticket"
+      if (/cod(igo)?(\s+de\s+barras)?|^code$|^voucher$|^ticket$/.test(h)) codeColIdx = i;
+      // "Validade", "Validade Final", "Expiry", "Data Validade"
+      if (/validade|expir(y|ation)|data.*valid/.test(h)) dateColIdx = i;
+    }
+
+    const startRow = 1; // sempre pula o cabeçalho
+
+    for (let i = startRow; i < rawRows.length; i++) {
       const cols = rawRows[i];
-      const rawCode = (cols[0] ?? '').toString().trim().replace(/['"]/g, '').toUpperCase();
-      const rawDate = (cols[1] ?? '').toString().trim();
+      const rawCode = (cols[codeColIdx] ?? '').toString().trim().replace(/['"]/g, '').toUpperCase();
+      const rawDate = (cols[dateColIdx] ?? '').toString().trim();
 
       if (!rawCode && !rawDate) continue;
       if (!rawCode) continue;
@@ -204,16 +232,37 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
     let errors = 0;
     let lastError = '';
 
-    const rows = preview.map(row => ({
-      code: row.code,
-      expiry_date: row.expiry_date,
-      used: false,
-    }));
+    // 1. Reativar códigos cancelados que coincidem com os do arquivo
+    const importCodes = preview.map(r => r.code);
+    const cancelledSet = new Set<string>();
+    const CHUNK = 100;
+    for (let i = 0; i < importCodes.length; i += CHUNK) {
+      const { data: cancelledMatches } = await db
+        .from(tables.importedCodes)
+        .select('id, code')
+        .eq('cancelled', true)
+        .in('code', importCodes.slice(i, i + CHUNK));
 
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE);
+      if (cancelledMatches?.length) {
+        for (const match of cancelledMatches) {
+          const row = preview.find(r => r.code === match.code)!;
+          const { error: reactivateErr } = await db
+            .from(tables.importedCodes)
+            .update({ cancelled: false, used: false, expiry_date: row.expiry_date })
+            .eq('id', match.id);
+          if (reactivateErr) { errors++; lastError = reactivateErr.message; }
+          else { inserted++; cancelledSet.add(match.code); }
+        }
+      }
+    }
 
+    // 2. Inserir os códigos realmente novos (excluindo os já reativados)
+    const rows = preview
+      .filter(r => !cancelledSet.has(r.code))
+      .map(row => ({ code: row.code, expiry_date: row.expiry_date, used: false, cancelled: false }));
+
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const batch = rows.slice(i, i + CHUNK);
       const { error: insertError, data } = await db
         .from(tables.importedCodes)
         .upsert(batch, { onConflict: 'code', ignoreDuplicates: true })
@@ -225,17 +274,10 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
           const { error: singleErr } = await db
             .from(tables.importedCodes)
             .upsert(row, { onConflict: 'code', ignoreDuplicates: true });
-
           if (singleErr) {
-            if (singleErr.message.includes('duplicate') || singleErr.code === '23505') {
-              duplicates++;
-            } else {
-              errors++;
-              lastError = singleErr.message;
-            }
-          } else {
-            inserted++;
-          }
+            if (singleErr.message.includes('duplicate') || singleErr.code === '23505') duplicates++;
+            else { errors++; lastError = singleErr.message; }
+          } else { inserted++; }
         }
       } else {
         const insertedCount = data?.length ?? 0;
@@ -244,12 +286,11 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
       }
     }
 
-    if (errors > 0) {
-      setError(`${errors} erro(s): ${lastError}`);
-    }
+    if (errors > 0) setError(`${errors} erro(s): ${lastError}`);
 
     setResult({ total: preview.length, inserted, duplicates, errors });
     await loadStats();
+    refresh();
     setLoading(false);
   };
 
@@ -320,9 +361,9 @@ export default function ImportCodesModal({ onClose }: ImportCodesModalProps) {
           {!result && (
             <>
               <div className={`rounded-xl p-3 border text-sm ${hintBg}`}>
-                <p className="font-semibold mb-1">Formato esperado da planilha:</p>
-                <p>Coluna A: <strong>Codigo do Voucher</strong> | Coluna B: <strong>Data de Validade</strong></p>
-                <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-blue-600'}`}>A linha 1 (cabecalho) sera ignorada. Datas aceitas: DD/MM/AAAA ou AAAA-MM-DD</p>
+                <p className="font-semibold mb-1">Formato esperado (rel_voucher):</p>
+                <p>Coluna <strong>C</strong> = Código de Barras &nbsp;·&nbsp; Coluna <strong>E</strong> = Validade</p>
+                <p className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-blue-600'}`}>Data no formato <em>DD/MM/AAAA até DD/MM/AAAA</em> — usa a data final automaticamente.</p>
               </div>
 
               <div

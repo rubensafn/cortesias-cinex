@@ -11,15 +11,15 @@ interface TicketArtProps {
 
 // ── Cortesias ──────────────────────────────────────────────────────────────
 const CORTESIAS_IMAGE      = '/MOLDE_VOUCHER_CINEX_1.png';
-const CORTESIAS_CODE_Y     = 0.515;   // % do topo onde cai o código
-const CORTESIAS_DATE_Y     = 0.712;   // % do topo onde cai a validade
+const CORTESIAS_CODE_Y     = 0.542;   // % do topo onde cai o código
+const CORTESIAS_DATE_Y     = 0.730;   // % do topo onde cai a validade
 
 // ── Empresa ────────────────────────────────────────────────────────────────
 const EMPRESA_FRENTE         = '/EMPRESA_INGRESSO_FRENTE_SEMTEXTO.png';
 const EMPRESA_VERSO          = '/EMPRESA_INGRESSO_VERSO.png';
-const EMPRESA_CODE_Y         = 0.823;   // % do topo — contorno vermelho/rosa (y≈875)
-const EMPRESA_DATE_LABEL_Y   = 0.694;   // % do topo — "VALIDADE:" no shape rosa (y≈738)
-const EMPRESA_DATE_VALUE_Y   = 0.717;   // % do topo — valor da data (y≈762)
+const EMPRESA_CODE_Y         = 0.827;   // % do topo — contorno vermelho/rosa
+const EMPRESA_DATE_LABEL_Y   = 0.694;   // % do topo — "VALIDADE:" no shape rosa
+const EMPRESA_DATE_VALUE_Y   = 0.717;   // % do topo — valor da data
 
 function formatDate(data_validade?: string | null) {
   if (!data_validade) return '';
@@ -71,17 +71,17 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
     pdf.setTextColor(255, 255, 255);
 
     // código
-    pdf.setFontSize(isEmpresa ? 11 : 12);
+    pdf.setFontSize(isEmpresa ? 14 : 20);
     pdf.text(codigo, pdfW / 2, pdfH * codeTopPct, { align: 'center' });
 
     // data
     if (isEmpresa) {
-      pdf.setFontSize(7);
+      pdf.setFontSize(8);
       pdf.text('VALIDADE:', pdfW / 2, pdfH * EMPRESA_DATE_LABEL_Y, { align: 'center' });
-      pdf.setFontSize(9);
+      pdf.setFontSize(11);
       pdf.text(validadeStr, pdfW / 2, pdfH * EMPRESA_DATE_VALUE_Y, { align: 'center' });
     } else {
-      pdf.setFontSize(10);
+      pdf.setFontSize(13);
       pdf.text(validadeStr, pdfW / 2, pdfH * dateTopPct, { align: 'center' });
     }
 
@@ -121,7 +121,7 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
                   className="font-bold tracking-wide"
                   style={{
                     fontFamily: "'Arial', 'Helvetica Neue', sans-serif",
-                    fontSize: 'clamp(7px, 2.5vw, 13px)',
+                    fontSize: 'clamp(8px, 3vw, 15px)',
                     color: '#ffffff',
                     textShadow: '0 1px 3px rgba(0,0,0,0.5)',
                     lineHeight: 1.1,
@@ -134,7 +134,7 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
                 className="font-bold tracking-wide"
                 style={{
                   fontFamily: "'Arial', 'Helvetica Neue', sans-serif",
-                  fontSize: 'clamp(9px, 3.5vw, 18px)',
+                  fontSize: 'clamp(11px, 4vw, 21px)',
                   color: '#ffffff',
                   textShadow: '0 1px 3px rgba(0,0,0,0.5)',
                 }}
@@ -152,7 +152,7 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
                 className="font-bold tracking-widest"
                 style={{
                   fontFamily: "'Arial', 'Helvetica Neue', sans-serif",
-                  fontSize: isEmpresa ? 'clamp(11px, 4vw, 22px)' : 'clamp(12px, 4vw, 24px)',
+                  fontSize: isEmpresa ? 'clamp(13px, 5vw, 26px)' : 'clamp(16px, 6vw, 32px)',
                   color: '#ffffff',
                   textShadow: '0 1px 4px rgba(0,0,0,0.5)',
                   letterSpacing: isEmpresa ? '0.08em' : undefined,
@@ -181,6 +181,48 @@ export function TicketArt({ codigo, data_validade, showDownload = true }: Ticket
 }
 
 // ── Geração em lote ────────────────────────────────────────────────────────
+export async function generateSinglePDF(
+  codigo: string,
+  data_validade: string | null,
+  isEmpresa = false,
+): Promise<void> {
+  const frentePath = isEmpresa ? EMPRESA_FRENTE : CORTESIAS_IMAGE;
+  const codeTopPct = isEmpresa ? EMPRESA_CODE_Y : CORTESIAS_CODE_Y;
+  const validadeStr = formatDate(data_validade);
+
+  const frente = await loadImage(frentePath);
+  const pdfW = 90;
+  const pdfH = (frente.height / frente.width) * pdfW;
+
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfW, pdfH] });
+  pdf.addImage(frente, 'PNG', 0, 0, pdfW, pdfH);
+  pdf.setFont('Helvetica', 'bold');
+  pdf.setTextColor(255, 255, 255);
+
+  pdf.setFontSize(isEmpresa ? 14 : 20);
+  pdf.text(codigo, pdfW / 2, pdfH * codeTopPct, { align: 'center' });
+
+  if (isEmpresa) {
+    pdf.setFontSize(8);
+    pdf.text('VALIDADE:', pdfW / 2, pdfH * EMPRESA_DATE_LABEL_Y, { align: 'center' });
+    pdf.setFontSize(11);
+    pdf.text(validadeStr, pdfW / 2, pdfH * EMPRESA_DATE_VALUE_Y, { align: 'center' });
+  } else {
+    pdf.setFontSize(13);
+    pdf.text(validadeStr, pdfW / 2, pdfH * CORTESIAS_DATE_Y, { align: 'center' });
+  }
+
+  if (isEmpresa) {
+    const verso = await loadImage(EMPRESA_VERSO);
+    const versoH = (verso.height / verso.width) * pdfW;
+    pdf.addPage([pdfW, versoH], 'portrait');
+    pdf.addImage(verso, 'PNG', 0, 0, pdfW, versoH);
+  }
+
+  const prefix = isEmpresa ? 'ingresso' : 'cortesia';
+  pdf.save(`${prefix}-${codigo}.pdf`);
+}
+
 export async function generateBatchPDF(
   codigos: string[],
   data_validade: string | null,
@@ -218,11 +260,11 @@ export async function generateBatchPDF(
       pdf.setFont('Helvetica', 'bold');
       pdf.setTextColor(255, 255, 255);
 
-      pdf.setFontSize(11);
+      pdf.setFontSize(14);
       pdf.text(codigo, x + ticketW / 2, y + ticketH * codeYPct, { align: 'center' });
-      pdf.setFontSize(7);
+      pdf.setFontSize(8);
       pdf.text('VALIDADE:', x + ticketW / 2, y + ticketH * EMPRESA_DATE_LABEL_Y, { align: 'center' });
-      pdf.setFontSize(9);
+      pdf.setFontSize(11);
       pdf.text(validadeStr, x + ticketW / 2, y + ticketH * EMPRESA_DATE_VALUE_Y, { align: 'center' });
 
       // página do verso
@@ -250,9 +292,9 @@ export async function generateBatchPDF(
       pdf.setFont('Helvetica', 'bold');
       pdf.setTextColor(255, 255, 255);
 
-      pdf.setFontSize(10);
+      pdf.setFontSize(18);
       pdf.text(codigo,      x + ticketW / 2, y + ticketH * codeYPct, { align: 'center' });
-      pdf.setFontSize(8);
+      pdf.setFontSize(11);
       pdf.text(validadeStr, x + ticketW / 2, y + ticketH * dateYPct, { align: 'center' });
     };
 

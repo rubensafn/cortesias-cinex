@@ -8,6 +8,7 @@ export type AppMode = 'cortesias' | 'empresa';
 export interface AppTables {
   tickets: string;
   importedCodes: string;
+  users: string;
   sessionKey: string;
 }
 
@@ -15,11 +16,13 @@ const APP_TABLES: Record<AppMode, AppTables> = {
   cortesias: {
     tickets: 'cortesias',
     importedCodes: 'imported_codes',
+    users: 'user_accounts',
     sessionKey: 'auth_session_cortesias',
   },
   empresa: {
     tickets: 'empresa_tickets',
     importedCodes: 'empresa_imported_codes',
+    users: 'empresa_user_accounts',
     sessionKey: 'auth_session_empresa',
   },
 };

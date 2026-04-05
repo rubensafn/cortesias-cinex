@@ -9,9 +9,11 @@ interface AuthContextType {
   isMaster: boolean;
   isApproved: boolean;
   userRole: 'master_admin' | 'master' | 'admin' | 'user' | null;
+  needsPasswordReset: boolean;
   signIn: (username: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (username: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  completePendingReset: (newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isMaster, setIsMaster] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
   const [userRole, setUserRole] = useState<'master_admin' | 'master' | 'admin' | 'user' | null>(null);
+  const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
 
   // Quando o app muda (cortesias <-> empresa), reinicia o estado de auth
   useEffect(() => {
@@ -33,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsMaster(false);
     setIsApproved(false);
     setUserRole(null);
+    setNeedsPasswordReset(false);
     setLoading(true);
 
     const savedSession = localStorage.getItem(tables.sessionKey);
@@ -42,8 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const session = JSON.parse(savedSession);
 
           const { data: freshData } = await db
-            .from('user_accounts')
-            .select('approved, role')
+            .from(tables.users)
+            .select('approved, role, reset_status')
             .eq('id', session.user.id)
             .maybeSingle();
 
@@ -55,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           const role = (freshData.role as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
           const approved = freshData.approved ?? false;
+          const resetStatus = (freshData.reset_status as string | null) ?? null;
 
           session.user.approved = approved;
           session.user.role = role;
@@ -74,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsMaster(role === 'master_admin' || role === 'master');
           setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
           setIsApproved(approved);
+          setNeedsPasswordReset(resetStatus === 'approved');
           setLoading(false);
         } catch {
           localStorage.removeItem(tables.sessionKey);
@@ -88,14 +94,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (username: string, password: string) => {
     try {
       const { data: accountData, error: dbError } = await db
-        .from('user_accounts')
-        .select('id, username, role, password, approved')
+        .from(tables.users)
+        .select('id, username, role, password, approved, reset_status')
         .eq('username', username)
         .maybeSingle();
 
       if (dbError) return { error: new Error('Erro ao verificar usuário') };
-      if (!accountData || accountData.password !== password) {
-        return { error: new Error('Usuário ou senha incorretos') };
+      if (!accountData) return { error: new Error('Usuário ou senha incorretos') };
+
+      const resetStatus = (accountData.reset_status as string | null) ?? null;
+
+      // Recuperação pendente: bloqueia login mesmo com senha correta
+      if (resetStatus === 'pending') {
+        return { error: new Error('Sua solicitação de recuperação de senha está aguardando aprovação.') };
+      }
+
+      // Se reset aprovado: bypass de senha, entra mas força troca
+      if (resetStatus !== 'approved') {
+        if (accountData.password !== password) {
+          return { error: new Error('Usuário ou senha incorretos') };
+        }
       }
 
       const role = (accountData.role as 'master_admin' | 'master' | 'admin' | 'user') || 'user';
@@ -116,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsMaster(role === 'master_admin' || role === 'master');
       setIsAdmin(role === 'admin' || role === 'master_admin' || role === 'master');
       setIsApproved(approved);
+      setNeedsPasswordReset(resetStatus === 'approved');
 
       const mockUser: User = {
         id: accountData.id,
@@ -139,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (password.length < 6) return { error: new Error('Senha deve ter pelo menos 6 caracteres') };
 
       const { data: existingUser } = await db
-        .from('user_accounts')
+        .from(tables.users)
         .select('id')
         .eq('username', username)
         .maybeSingle();
@@ -147,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (existingUser) return { error: new Error('Usuario ja existe') };
 
       const { error: insertError } = await db
-        .from('user_accounts')
+        .from(tables.users)
         .insert({ username, password, role: 'user', approved: false });
 
       if (insertError) return { error: new Error(insertError.message || 'Erro ao criar conta') };
@@ -165,10 +184,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsMaster(false);
     setIsApproved(false);
     setUserRole(null);
+    setNeedsPasswordReset(false);
+  };
+
+  const completePendingReset = async (newPassword: string) => {
+    if (!user) return { error: new Error('Não autenticado') };
+    const { error } = await db
+      .from(tables.users)
+      .update({ password: newPassword, reset_status: null })
+      .eq('id', user.id);
+    if (!error) setNeedsPasswordReset(false);
+    return { error: error ? new Error(error.message) : null };
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, isMaster, isApproved, userRole, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{
+      user, loading, isAdmin, isMaster, isApproved, userRole,
+      needsPasswordReset, signIn, signUp, signOut, completePendingReset,
+    }}>
       {children}
     </AuthContext.Provider>
   );

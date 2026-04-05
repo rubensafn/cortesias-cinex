@@ -3,8 +3,8 @@ import { useApp } from '../contexts/AppContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Sparkles, CheckCircle, AlertCircle, ShieldAlert, Building2 } from 'lucide-react';
-import { TicketArt } from './TicketArt';
+import { Sparkles, CheckCircle, AlertCircle, ShieldAlert, Building2, FileDown, Download } from 'lucide-react';
+import { generateBatchPDF, generateSinglePDF } from './TicketArt';
 
 interface FormData {
   quantidade: number;
@@ -75,6 +75,20 @@ async function claimCodes(
   return { codes: toClaimRows.map(r => r.code), error: null };
 }
 
+function DownloadCodeBtn({ code, validade, isEmpresa }: { code: string; validade: string; isEmpresa: boolean }) {
+  const [loading, setLoading] = useState(false);
+  return (
+    <button
+      onClick={async () => { setLoading(true); try { await generateSinglePDF(code, validade || null, isEmpresa); } finally { setLoading(false); } }}
+      disabled={loading}
+      className="p-1.5 rounded-lg transition-colors disabled:opacity-50 text-gray-400 hover:text-white hover:bg-white/10"
+      title="Baixar PDF"
+    >
+      <Download size={14} />
+    </button>
+  );
+}
+
 export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormProps) {
   const { user } = useAuth();
   const { db, tables } = useApp();
@@ -82,7 +96,8 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState<{ count: number; codes: string[]; validade: string } | null>(null);
+  const [success, setSuccess] = useState<{ count: number; codes: string[]; validade: string; solicitante: string } | null>(null);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     quantidade: 1,
     solicitante: '',
@@ -124,7 +139,7 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
       const { error: insertError } = await db.from(tables.tickets).insert(insertData);
       if (insertError) throw new Error(insertError.message);
 
-      setSuccess({ count: formData.quantidade, codes: generatedCodes, validade: formData.data_validade });
+      setSuccess({ count: formData.quantidade, codes: generatedCodes, validade: formData.data_validade, solicitante: formData.solicitante });
       setFormData({ quantidade: 1, solicitante: '', motivo: '', data_validade: '' });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
@@ -149,28 +164,20 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
           <p className={`mt-2 text-sm ${isDark || isEmpresa ? 'text-gray-400' : 'text-gray-500'}`}>Os códigos foram criados com sucesso</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {success.codes.slice(0, 3).map(code => (
-            <TicketArt key={code} codigo={code} data_validade={success.validade} />
-          ))}
-        </div>
-
-        {success.codes.length > 3 && (
-          <div className={`rounded-xl p-4 border mb-6 ${isDark || isEmpresa ? 'bg-white/5 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
-            <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isDark || isEmpresa ? 'text-gray-500' : 'text-gray-500'}`}>
-              +{success.codes.length - 3} códigos adicionais
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {success.codes.slice(3).map(code => (
-                <span key={code} className={`border rounded-lg px-3 py-1.5 font-mono text-sm font-bold ${
-                  isDark || isEmpresa ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-gray-200 text-gray-800'
-                }`}>{code}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-4">
+        {/* Ações no topo */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <button
+            onClick={async () => {
+              setDownloadingAll(true);
+              try { await generateBatchPDF(success.codes, success.validade || null, success.solicitante, isEmpresa); }
+              finally { setDownloadingAll(false); }
+            }}
+            disabled={downloadingAll}
+            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-semibold transition-opacity disabled:opacity-50 text-white ${isEmpresa ? 'bg-gradient-to-r from-[#d97706] to-[#0284c7]' : 'bg-gradient-to-r from-[#a700ff] to-[#ea0cac]'}`}
+          >
+            <FileDown size={16} />
+            {downloadingAll ? 'Gerando PDF...' : `Baixar Todos (${success.codes.length})`}
+          </button>
           <button
             onClick={() => { setSuccess(null); onSuccess(); }}
             className={`flex-1 py-3 px-4 rounded-lg transition-colors font-semibold ${isDark || isEmpresa ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}
@@ -183,6 +190,20 @@ export default function GenerateTicketsForm({ onSuccess }: GenerateTicketsFormPr
           >
             Gerar Mais
           </button>
+        </div>
+
+        {/* Lista de códigos gerados */}
+        <div className={`rounded-xl border divide-y overflow-hidden ${isDark || isEmpresa ? 'border-white/10 divide-white/5' : 'border-gray-100 divide-gray-100'}`}>
+          {success.codes.map((code, i) => (
+            <div key={code} className={`flex items-center justify-between px-4 py-2.5 ${isDark || isEmpresa ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+              <div className="flex items-center gap-3">
+                <span className={`text-xs w-6 text-right shrink-0 ${isDark || isEmpresa ? 'text-gray-600' : 'text-gray-300'}`}>{i + 1}</span>
+                <span className={`font-mono text-sm font-bold ${accentText}`}>{code}</span>
+                <span className={`text-xs ${isDark || isEmpresa ? 'text-gray-500' : 'text-gray-400'}`}>{isEmpresa ? 'ingresso' : 'cortesia'}-{code}.pdf</span>
+              </div>
+              <DownloadCodeBtn code={code} validade={success.validade} isEmpresa={isEmpresa} />
+            </div>
+          ))}
         </div>
       </div>
     );
